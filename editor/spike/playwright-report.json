@@ -1,0 +1,335 @@
+[
+  {
+    "engine": "chromium",
+    "modes": {
+      "light": {
+        "statusText": "마운트 성공 (root=document)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 47,
+          "empty": false,
+          "text": "일반 문단"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      },
+      "no-root": {
+        "statusText": "마운트 성공 (root=ShadowRoot)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 47,
+          "empty": false,
+          "text": "일반 문단"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      },
+      "with-root": {
+        "statusText": "마운트 성공 (root=ShadowRoot)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 47,
+          "empty": false,
+          "text": "일반 문단"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      }
+    },
+    "consoleErrors": []
+  },
+  {
+    "engine": "firefox",
+    "modes": {
+      "light": {
+        "statusText": "마운트 성공 (root=document)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 46,
+          "empty": false,
+          "text": "일반 문"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      },
+      "no-root": {
+        "statusText": "마운트 성공 (root=ShadowRoot)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 46,
+          "empty": false,
+          "text": "일반 문"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      },
+      "with-root": {
+        "statusText": "마운트 성공 (root=ShadowRoot)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 46,
+          "empty": false,
+          "text": "일반 문"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      }
+    },
+    "consoleErrors": []
+  },
+  {
+    "engine": "webkit",
+    "modes": {
+      "light": {
+        "statusText": "마운트 성공 (root=document)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 47,
+          "empty": false,
+          "text": "일반 문단"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      },
+      "no-root": {
+        "statusText": "마운트 성공 (root=ShadowRoot)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 47,
+          "empty": false,
+          "text": "일반 문단"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      },
+      "with-root": {
+        "statusText": "마운트 성공 (root=ShadowRoot)",
+        "ok": true,
+        "clickCaret": {
+          "head": 26,
+          "lineFrom": 26,
+          "lineTo": 40,
+          "lineNumber": 3,
+          "lineText": "## 구문강조 확인용 헤딩"
+        },
+        "clickCaretCorrect": true,
+        "dragSelection": {
+          "from": 42,
+          "to": 47,
+          "empty": false,
+          "text": "일반 문단"
+        },
+        "dragSelectionCorrect": true,
+        "typing": {
+          "line3Text": "## 구문강조 확인용 헤딩TYPETEST",
+          "head": 48
+        },
+        "typingCorrect": true,
+        "arrowKey": {
+          "beforeArrow": 48,
+          "afterArrow": 46
+        },
+        "arrowKeyCorrect": true,
+        "highlight": {
+          "headingColor": "rgb(64, 71, 64)",
+          "plainColor": "rgb(0, 0, 0)",
+          "codeLineColor": "rgb(0, 0, 0)"
+        },
+        "highlightCorrect": true
+      }
+    },
+    "consoleErrors": []
+  }
+]

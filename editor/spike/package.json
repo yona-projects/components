@@ -1,0 +1,18 @@
+{
+  "name": "yona-markdown-editor-spike",
+  "private": true,
+  "version": "0.0.0",
+  "description": "P3-46 0단계 Shadow DOM + CodeMirror6 go/no-go 스파이크. 정식 산출물 아님, 실험 코드.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.36.0",
+    "@codemirror/commands": "^6.7.0",
+    "@codemirror/lang-markdown": "^6.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>P3-46 0단계 스파이크 — Shadow DOM + CodeMirror6</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  section { border: 1px solid #ccc; margin-bottom: 24px; padding: 12px; }
+  h2 { margin-top: 0; }
+  .status { font-weight: bold; padding: 4px 8px; display: inline-block; margin-bottom: 8px; }
+  .status.ok { background: #d4f7d4; color: #1a6b1a; }
+  .status.error { background: #f7d4d4; color: #8b1a1a; }
+  .status.pending { background: #eee; color: #555; }
+  .editor-host { border: 2px solid #888; min-height: 160px; }
+  /* light DOM 대조군에만 적용되는 CSS — Shadow DOM 캡슐화 확인용으로, 이 규칙이
+     shadow 안쪽 에디터에 새어들어가지 않아야 정상(캡슐화 검증) */
+  .cm-editor { background: #fffef0; }
+</style>
+</head>
+<body>
+
+<h1>P3-46 0단계 스파이크: Shadow DOM 안의 CodeMirror6</h1>
+
+<section>
+  <h2>A. Light DOM 대조군 (mode=light)</h2>
+  <div class="status pending" id="status-light">대기 중</div>
+  <div class="editor-host" id="host-light"></div>
+</section>
+
+<section>
+  <h2>B. Shadow DOM, root 옵션 미지정 (mode=no-root, 함정#2 재현 시도)</h2>
+  <div class="status pending" id="status-no-root">대기 중</div>
+  <div class="editor-host" id="host-no-root"></div>
+</section>
+
+<section>
+  <h2>C. Shadow DOM, root 옵션 명시 (mode=with-root)</h2>
+  <div class="status pending" id="status-with-root">대기 중</div>
+  <div class="editor-host" id="host-with-root"></div>
+</section>
+
+<script src="dist/spike-bundle.js"></script>
+<script>
+  const results = {};
+  window.__spikeResults = results;
+
+  function run(hostId, statusId, mode) {
+    const host = document.getElementById(hostId);
+    const statusEl = document.getElementById(statusId);
+    const { view, error } = window.__spike.mountEditor(host, mode);
+    if (error) {
+      statusEl.textContent = "오류: " + (error && error.message);
+      statusEl.className = "status error";
+      results[mode] = { ok: false, message: error && error.message };
+    } else {
+      statusEl.textContent = "마운트 성공 (root=" + (view.root === document ? "document" : "ShadowRoot") + ")";
+      statusEl.className = "status ok";
+      results[mode] = { ok: true };
+      window["__view_" + mode] = view;
+    }
+  }
+
+  run("host-light", "status-light", "light");
+  run("host-no-root", "status-no-root", "no-root");
+  run("host-with-root", "status-with-root", "with-root");
+</script>
+</body>
+</html>
