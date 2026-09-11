@@ -1,6 +1,6 @@
-// yona-markdown-editor 2단계(셸: 폼 통합 + 기본 편집).
+// yona-markdown-editor 2~3단계(셸: 폼 통합 + 기본 편집 / 툴바 + CSS 테마 계약).
 //
-// 이 단계의 목표는 딱 세 가지다:
+// 2단계 목표는 딱 세 가지였다:
 //   1) light DOM에 기존 markdownEditor 프래그먼트의 <textarea> 계약(name/id(editor- 접두어)/
 //      data-editor-mode/markdown="true")을 그대로 재현한 실제 <textarea>를 렌더링한다 — 기존
 //      폼 제출 코드(jQuery Form Plugin ajaxSubmit, raw $.ajax 등)가 지금처럼 이 textarea의
@@ -11,7 +11,13 @@
 //      재발행한다(yobi.ui.MarkdownEditor.js의 `codemirror.on("change", ...)` 패턴과 동일 —
 //      임시저장 시스템이 이 이벤트에 의존).
 //
-// 툴바/미리보기/멘션은 3~5단계 범위라 여기서 다루지 않는다.
+// 3단계(이번 변경)에서 추가한 것: 9개 툴바 커맨드(src/toolbar.ts, src/commands.ts)와
+// ::part()/CSS 커스텀 프로퍼티 테마 계약. Shadow DOM 내부 구조가
+//   <style>...</style> <div part="toolbar">...</div> <div part="editor">(CM6 mount)</div>
+// 로 바뀌었다 - EditorView의 parent가 shadow 루트 자체에서 "editor" wrapper div로 바뀌었을 뿐,
+// root 옵션(0단계에서 검증된 셀렉션/포커스 동작)은 그대로 shadow를 가리킨다.
+//
+// 미리보기/멘션은 4~5단계 범위라 여기서 다루지 않는다.
 //
 // 호환 shim(P3-46 8번 항목 2단계, 사용자 결정 확정 2026-09-11): yobi.Attachments.js/
 // yona.CommentAttachmentsUpdate.js는 첨부파일 카드 클릭으로 본문에 링크를 삽입할 때
@@ -28,6 +34,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+import { createToolbar, TOOLBAR_STYLES } from "./toolbar.js";
 
 interface LegacyEasyMdeShim {
   value(newValue?: string): string | undefined;
@@ -89,6 +96,20 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     const shadow = this.attachShadow({ mode: "open" });
 
+    const style = document.createElement("style");
+    style.textContent = TOOLBAR_STYLES;
+    shadow.appendChild(style);
+
+    // CM6 EditorView는 이 wrapper(part="editor")에 마운트한다 - shadow 루트 자체가 아니라
+    // 툴바 아래의 별도 컨테이너에 마운트해야 "툴바 위/에디터 아래" 레이아웃이 된다. root 옵션은
+    // 여전히 shadow를 가리킨다(0단계에서 검증된 셀렉션/포커스 동작 유지 - parent와 root는
+    // 서로 다른 개념: parent는 DOM 삽입 위치, root는 document.getSelection() 등을 대체할
+    // 때 쓰는 selection root).
+    const editorWrapper = document.createElement("div");
+    editorWrapper.setAttribute("part", "editor");
+    editorWrapper.className = "editor-wrapper";
+    shadow.appendChild(editorWrapper);
+
     const view = new EditorView({
       state: EditorState.create({
         doc: initialValue,
@@ -98,6 +119,12 @@ export class YonaMarkdownEditor extends HTMLElement {
           markdown(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
           EditorView.lineWrapping,
+          EditorView.theme({
+            "&": {
+              fontFamily: "var(--yona-md-font-family, Consolas, Menlo, Monaco, monospace)",
+              fontSize: "var(--yona-md-font-size, 13px)",
+            },
+          }),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) {
               return;
@@ -106,11 +133,16 @@ export class YonaMarkdownEditor extends HTMLElement {
           }),
         ],
       }),
-      parent: shadow,
+      parent: editorWrapper,
       root: shadow,
     });
 
     this.view = view;
+
+    // 툴바는 view가 만들어진 뒤에 붙인다(각 버튼 클릭 핸들러가 이 view를 직접 참조 - 3단계).
+    // 시각 순서(툴바가 에디터 위)를 맞추기 위해 이미 삽입된 editorWrapper 앞에 끼워 넣는다.
+    const toolbar = createToolbar(view);
+    shadow.insertBefore(toolbar, editorWrapper);
 
     this.exposeLegacyEasyMdeShim();
   }
