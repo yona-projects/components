@@ -11,13 +11,17 @@
 //      재발행한다(yobi.ui.MarkdownEditor.js의 `codemirror.on("change", ...)` 패턴과 동일 —
 //      임시저장 시스템이 이 이벤트에 의존).
 //
-// 3단계(이번 변경)에서 추가한 것: 9개 툴바 커맨드(src/toolbar.ts, src/commands.ts)와
-// ::part()/CSS 커스텀 프로퍼티 테마 계약. Shadow DOM 내부 구조가
+// 3단계에서 추가한 것: 9개 툴바 커맨드(src/toolbar.ts, src/commands.ts)와 ::part()/CSS 커스텀
+// 프로퍼티 테마 계약. Shadow DOM 내부 구조가
 //   <style>...</style> <div part="toolbar">...</div> <div part="editor">(CM6 mount)</div>
 // 로 바뀌었다 - EditorView의 parent가 shadow 루트 자체에서 "editor" wrapper div로 바뀌었을 뿐,
 // root 옵션(0단계에서 검증된 셀렉션/포커스 동작)은 그대로 shadow를 가리킨다.
 //
-// 미리보기/멘션은 4~5단계 범위라 여기서 다루지 않는다.
+// 4단계(이번 변경)에서 추가한 것: 미리보기 서버 렌더링 재연동(src/preview.ts). preview 툴바
+// 버튼을 누르면 CM6 에디터 뷰(part="editor")와 미리보기 패널(part="preview")을 서로
+// hidden 속성으로 토글한다(EasyMDE 시절과 동일한 단일 뷰 토글 - side-by-side 아님). 켜지는
+// 시점과, 켜진 채로 문서가 바뀔 때마다 PreviewController.scheduleRender()를 호출한다(300ms
+// 디바운스 + 요청 순번 레이스가드는 preview.ts 참고). 멘션은 5단계 범위라 여기서 다루지 않는다.
 //
 // 호환 shim(P3-46 8번 항목 2단계, 사용자 결정 확정 2026-09-11): yobi.Attachments.js/
 // yona.CommentAttachmentsUpdate.js는 첨부파일 카드 클릭으로 본문에 링크를 삽입할 때
@@ -35,6 +39,7 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 import { createToolbar, TOOLBAR_STYLES } from "./toolbar.js";
+import { PreviewController } from "./preview.js";
 
 interface LegacyEasyMdeShim {
   value(newValue?: string): string | undefined;
@@ -60,6 +65,10 @@ let instanceCounter = 0;
 export class YonaMarkdownEditor extends HTMLElement {
   private view: EditorView | null = null;
   private textarea: HTMLTextAreaElement | null = null;
+  private editorWrapper: HTMLDivElement | null = null;
+  private previewPanel: HTMLDivElement | null = null;
+  private previewController: PreviewController | null = null;
+  private previewActive = false;
 
   connectedCallback(): void {
     if (this.shadowRoot) {
@@ -75,6 +84,14 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     const name = this.getAttribute("name") ?? "";
     const editorMode = this.getAttribute("editor-mode") ?? "";
+    // markdownEditor 프래그먼트(site/layout.html)는 이 커스텀 엘리먼트를 감싸는 바깥
+    // <div data-toggle="markdown-editor" th:data-markdown-render-url="...">에 렌더 URL을
+    // 노출한다(project 컨텍스트가 없는 화면은 이 속성 자체가 없다 - th:data-* 표현식이 null이면
+    // Thymeleaf가 속성을 렌더링하지 않는다, 8-2단계에서 이미 확인된 동작). closest()는 light
+    // DOM 조상을 그대로 타고 올라가므로 이 커스텀 엘리먼트가 light DOM에 있는 한 항상 동작한다.
+    const renderUrl = this.closest('[data-toggle="markdown-editor"]')?.getAttribute(
+      "data-markdown-render-url",
+    ) ?? null;
 
     // 컴포넌트가 스스로 light DOM을 재구성하기 전에, 서버가 슬롯 콘텐츠로 넣어준 원본 텍스트는
     // 이미 initialValue로 읽어뒀으니 이제 지워도 안전하다.
@@ -109,6 +126,21 @@ export class YonaMarkdownEditor extends HTMLElement {
     editorWrapper.setAttribute("part", "editor");
     editorWrapper.className = "editor-wrapper";
     shadow.appendChild(editorWrapper);
+    this.editorWrapper = editorWrapper;
+
+    // 미리보기 패널 - 기본은 숨김(에디터 뷰가 기본 표시). preview 버튼을 누르면 이 패널과
+    // editorWrapper가 서로 hidden을 토글한다(단일 뷰 토글 - side-by-side 아님).
+    // "markdown-wrap" 클래스는 4단계 지시(A.2)대로 부여했다 - 그 클래스가 사이트에서 내는
+    // 실제 시각 효과를 Shadow DOM 안에 어떻게 재현할지는 preview.ts/toolbar.ts 상단 주석에
+    // 적어둔 대로 아직 결정 대기 중이다.
+    const previewPanel = document.createElement("div");
+    previewPanel.setAttribute("part", "preview");
+    previewPanel.className = "preview-wrap markdown-wrap";
+    previewPanel.hidden = true;
+    shadow.appendChild(previewPanel);
+    this.previewPanel = previewPanel;
+
+    this.previewController = new PreviewController({ renderUrl, panel: previewPanel });
 
     const view = new EditorView({
       state: EditorState.create({
@@ -130,6 +162,9 @@ export class YonaMarkdownEditor extends HTMLElement {
               return;
             }
             this.syncTextareaFromEditor();
+            if (this.previewActive) {
+              this.previewController?.scheduleRender(update.state.doc.toString());
+            }
           }),
         ],
       }),
@@ -141,7 +176,9 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     // 툴바는 view가 만들어진 뒤에 붙인다(각 버튼 클릭 핸들러가 이 view를 직접 참조 - 3단계).
     // 시각 순서(툴바가 에디터 위)를 맞추기 위해 이미 삽입된 editorWrapper 앞에 끼워 넣는다.
-    const toolbar = createToolbar(view);
+    const toolbar = createToolbar(view, {
+      onPreviewToggle: (active) => this.handlePreviewToggle(active),
+    });
     shadow.insertBefore(toolbar, editorWrapper);
 
     this.exposeLegacyEasyMdeShim();
@@ -177,8 +214,27 @@ export class YonaMarkdownEditor extends HTMLElement {
   }
 
   disconnectedCallback(): void {
+    this.previewController?.dispose();
     this.view?.destroy();
     this.view = null;
+  }
+
+  /**
+   * preview 툴바 버튼 클릭 시 toolbar.ts가 호출한다(active는 클릭 후의 새 상태). 단일 뷰
+   * 토글 - 에디터와 미리보기 패널이 서로 hidden을 주고받는다. 켜지는 시점에는 항상 최신 문서로
+   * 1회 렌더링을 예약한다(그 이후의 렌더링은 updateListener의 docChanged 훅이 담당).
+   */
+  private handlePreviewToggle(active: boolean): void {
+    this.previewActive = active;
+    if (this.editorWrapper) {
+      this.editorWrapper.hidden = active;
+    }
+    if (this.previewPanel) {
+      this.previewPanel.hidden = !active;
+    }
+    if (active && this.view) {
+      this.previewController?.scheduleRender(this.view.state.doc.toString());
+    }
   }
 
   private syncTextareaFromEditor(): void {

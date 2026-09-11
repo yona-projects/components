@@ -14,10 +14,16 @@
 //   ::part("button button-{command}") - 각 버튼(공용 "button" + 커맨드별 토큰)
 //   ::part("separator")          - 구분선
 //   ::part("editor")             - CM6 마운트 지점을 감싸는 wrapper
+//   ::part("preview")            - 미리보기 패널(4단계 추가)
 // CSS 커스텀 프로퍼티(--yona-md-*)로 색상/크기/폰트를 노출하되, yobi.css의 옛 재스킨
 // (.EasyMDEContainer .editor-toolbar 등, yobi.css 12128~12181행)과 시각적으로 동일한 값을
 // 컴포넌트 기본값으로 내장한다 - yobi.css가 ::part() 오버라이드를 전혀 안 써도 지금과
 // 똑같아 보이는 게 1차 목표(동치성).
+//
+// 4단계(미리보기): preview 버튼은 문서를 바꾸는 커맨드가 아니라 뷰 토글이라 다른 버튼과
+// run/dispatch 경로가 다르다 - createToolbar(view, options)의 options.onPreviewToggle이
+// 실제 패널 표시/숨김 + 서버 렌더링 트리거를 담당하고(YonaMarkdownEditor.ts), 여기서는 버튼
+// 자체의 active 표시(aria-pressed 포함)만 계속 책임진다.
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { CommandResult } from "./commands.js";
@@ -92,12 +98,17 @@ function runCommand(view: EditorView, fn: (state: EditorState) => CommandResult)
   view.focus();
 }
 
+export interface ToolbarOptions {
+  /** preview 버튼을 클릭할 때마다 호출된다(active는 클릭 후의 새 상태). */
+  onPreviewToggle: (active: boolean) => void;
+}
+
 /**
  * 툴바 DOM을 만들어 반환한다. 각 버튼 클릭은 view.dispatch를 통해 문서를 바꾸고,
  * YonaMarkdownEditor의 updateListener(2단계에서 이미 구현됨)가 그 변경을 감지해 light DOM
  * textarea 동기화를 자동으로 처리하므로 여기서 별도로 textarea를 건드리지 않는다.
  */
-export function createToolbar(view: EditorView): HTMLDivElement {
+export function createToolbar(view: EditorView, options: ToolbarOptions): HTMLDivElement {
   const toolbar = document.createElement("div");
   toolbar.setAttribute("part", "toolbar");
   toolbar.className = "toolbar";
@@ -138,11 +149,15 @@ export function createToolbar(view: EditorView): HTMLDivElement {
         runCommand(view, run);
       });
     } else {
-      // preview: 4단계 범위 - 지금은 버튼 자체의 active 표시만 토글하는 placeholder.
+      // preview: 문서를 바꾸지 않는 뷰 토글 - 버튼 자체의 active 표시(+ aria-pressed)는 여기서
+      // 책임지고, 실제 패널 표시/숨김과 서버 렌더링 트리거는 호출자(YonaMarkdownEditor)에게
+      // 넘긴다.
+      button.setAttribute("aria-pressed", "false");
       button.addEventListener("click", (event) => {
         event.preventDefault();
         const nowActive = button.classList.toggle("is-active");
         button.setAttribute("aria-pressed", nowActive ? "true" : "false");
+        options.onPreviewToggle(nowActive);
         view.focus();
       });
     }
@@ -261,5 +276,22 @@ export const TOOLBAR_STYLES = `
 
 .editor-wrapper .cm-editor {
   min-height: var(--yona-md-min-height);
+}
+
+/* 4단계(미리보기): 컨테이너 자체(테두리/여백/최소높이)는 editor-wrapper와 시각적으로
+   맞췄다. 안쪽 콘텐츠 타이포그래피(제목 크기/코드블록 배경/링크 색/리스트 간격 등, 사이트
+   전역 .markdown-wrap 클래스가 실제로 내는 효과 - yobi.css 11331행대)와 코드블록 구문강조
+   색상(highlight.js 테마, /javascripts/lib/highlight/styles/default.css)은 둘 다 전역
+   <link>로 로드되어 Shadow DOM 경계를 넘지 못한다 - 이 안에 어떻게(전체 재현/부분 재현/다른
+   방식) 가져올지는 아직 결정하지 않았다(4단계 지시 A.2, 확인 대기 - preview.ts 상단 주석
+   참고). 클래스명 "markdown-wrap" 자체는 지시대로 부여해뒀으니 결정되는 즉시 이 스타일
+   블록에 규칙만 추가하면 된다. */
+.preview-wrap {
+  box-sizing: border-box;
+  min-height: var(--yona-md-min-height);
+  padding: 10px;
+  border: 1px solid var(--yona-md-border-color);
+  border-radius: 0 0 var(--yona-md-radius) var(--yona-md-radius);
+  overflow: auto;
 }
 `;
