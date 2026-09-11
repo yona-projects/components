@@ -17,11 +17,20 @@
 // 로 바뀌었다 - EditorView의 parent가 shadow 루트 자체에서 "editor" wrapper div로 바뀌었을 뿐,
 // root 옵션(0단계에서 검증된 셀렉션/포커스 동작)은 그대로 shadow를 가리킨다.
 //
-// 4단계(이번 변경)에서 추가한 것: 미리보기 서버 렌더링 재연동(src/preview.ts). preview 툴바
+// 4단계에서 추가한 것: 미리보기 서버 렌더링 재연동(src/preview.ts). preview 툴바
 // 버튼을 누르면 CM6 에디터 뷰(part="editor")와 미리보기 패널(part="preview")을 서로
 // hidden 속성으로 토글한다(EasyMDE 시절과 동일한 단일 뷰 토글 - side-by-side 아님). 켜지는
 // 시점과, 켜진 채로 문서가 바뀔 때마다 PreviewController.scheduleRender()를 호출한다(300ms
-// 디바운스 + 요청 순번 레이스가드는 preview.ts 참고). 멘션은 5단계 범위라 여기서 다루지 않는다.
+// 디바운스 + 요청 순번 레이스가드는 preview.ts 참고).
+//
+// 5단계(이번 변경)에서 추가한 것: @codemirror/autocomplete 기반 멘션 자동완성(src/mention.ts) -
+// "@"(사용자)/":"(이모지)/"#"(이슈) 3트리거. markdownEditor 프래그먼트가 render-url과 동일한
+// 방식으로 노출하는 data-mention-url이 있을 때만(project 컨텍스트가 있는 화면 전부 - render-url과
+// 동일 게이트) 이 확장을 extensions 배열에 아예 추가한다 - 옛 yobi.Mention()이 페이지당 한 번만
+// 호출되어 "@"/":"/"#" 3개를 한꺼번에 켜거나 아예 안 켜던 것과 동일한 all-or-nothing 단위를
+// 유지하기 위해, mentionUrl이 없는 화면(project 컨텍스트 없는 화면 - 실사용처 없음)에서는 emoji
+// 트리거조차 등록하지 않는다. `yobi.Mention.js`는 이 단계에서 완전히 삭제됐다(로직은
+// mention.ts로 흡수).
 //
 // 호환 shim(P3-46 8번 항목 2단계, 사용자 결정 확정 2026-09-11): yobi.Attachments.js/
 // yona.CommentAttachmentsUpdate.js는 첨부파일 카드 클릭으로 본문에 링크를 삽입할 때
@@ -30,16 +39,17 @@
 // 시 CM이 자신의 예전 버퍼로 textarea를 덮어써 방금 넣은 링크가 사라진다 - P3-50에서 이미 한번
 // 고친 데이터 손실 버그). yobi.ui.MarkdownEditor.js를 걷어내면서 이 두 파일이 계속 그대로
 // 동작하도록, 같은 jQuery data 키("easymde")에 최소 shim({ value(newValue?) })을 노출한다.
-// yobi.Mention.js도 이 키를 읽지만(easyMDE.codemirror로 Tribute attach 대상을 찾음) 멘션은
-// 5단계에서 CM6용으로 재구현하기로 이미 계획된 범위라 이 shim은 그 용도를 지원하지 않는다
-// (사용자 확정 - 멘션 일시 먹통 허용, codemirror 키는 의도적으로 shim에 없음).
-import { EditorState } from "@codemirror/state";
+// (2단계 당시엔 yobi.Mention.js도 이 키를 읽어(easyMDE.codemirror로 Tribute attach 대상을 찾음)
+// codemirror 프로퍼티가 이 shim에 없어 멘션이 5단계까지 일시적으로 먹통이었다 - 5단계에서
+// yobi.Mention.js 자체가 삭제되고 멘션이 CM6 네이티브(mention.ts)로 재구현되면서 해소됐다.)
+import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 import { createToolbar, TOOLBAR_STYLES } from "./toolbar.js";
 import { PreviewController } from "./preview.js";
+import { createMentionExtension, MENTION_STYLES } from "./mention.js";
 
 interface LegacyEasyMdeShim {
   value(newValue?: string): string | undefined;
@@ -92,6 +102,11 @@ export class YonaMarkdownEditor extends HTMLElement {
     const renderUrl = this.closest('[data-toggle="markdown-editor"]')?.getAttribute(
       "data-markdown-render-url",
     ) ?? null;
+    // 5단계: 멘션 API URL도 render-url과 동일한 방식으로 노출된다(data-mention-url, 같은
+    // data-toggle="markdown-editor" wrapper - project 컨텍스트가 없으면 속성 자체가 없다).
+    const mentionUrl = this.closest('[data-toggle="markdown-editor"]')?.getAttribute(
+      "data-mention-url",
+    ) ?? null;
 
     // 컴포넌트가 스스로 light DOM을 재구성하기 전에, 서버가 슬롯 콘텐츠로 넣어준 원본 텍스트는
     // 이미 initialValue로 읽어뒀으니 이제 지워도 안전하다.
@@ -114,7 +129,7 @@ export class YonaMarkdownEditor extends HTMLElement {
     const shadow = this.attachShadow({ mode: "open" });
 
     const style = document.createElement("style");
-    style.textContent = TOOLBAR_STYLES;
+    style.textContent = TOOLBAR_STYLES + MENTION_STYLES;
     shadow.appendChild(style);
 
     // CM6 EditorView는 이 wrapper(part="editor")에 마운트한다 - shadow 루트 자체가 아니라
@@ -142,32 +157,36 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     this.previewController = new PreviewController({ renderUrl, panel: previewPanel });
 
-    const view = new EditorView({
-      state: EditorState.create({
-        doc: initialValue,
-        extensions: [
-          history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
-          markdown(),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-          EditorView.lineWrapping,
-          EditorView.theme({
-            "&": {
-              fontFamily: "var(--yona-md-font-family, Consolas, Menlo, Monaco, monospace)",
-              fontSize: "var(--yona-md-font-size, 13px)",
-            },
-          }),
-          EditorView.updateListener.of((update) => {
-            if (!update.docChanged) {
-              return;
-            }
-            this.syncTextareaFromEditor();
-            if (this.previewActive) {
-              this.previewController?.scheduleRender(update.state.doc.toString());
-            }
-          }),
-        ],
+    const extensions: Extension[] = [
+      history(),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+      markdown(),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      EditorView.lineWrapping,
+      EditorView.theme({
+        "&": {
+          fontFamily: "var(--yona-md-font-family, Consolas, Menlo, Monaco, monospace)",
+          fontSize: "var(--yona-md-font-size, 13px)",
+        },
       }),
+      EditorView.updateListener.of((update) => {
+        if (!update.docChanged) {
+          return;
+        }
+        this.syncTextareaFromEditor();
+        if (this.previewActive) {
+          this.previewController?.scheduleRender(update.state.doc.toString());
+        }
+      }),
+    ];
+    // mentionUrl이 없는 화면(project 컨텍스트 없음 - 실사용처 없음)에서는 이 확장 자체를 아예
+    // 추가하지 않는다(위 5단계 주석 참고 - "@"/":"/"#" 전부를 한 단위로 켜고 끈다).
+    if (mentionUrl) {
+      extensions.push(createMentionExtension({ getMentionUrl: () => mentionUrl }));
+    }
+
+    const view = new EditorView({
+      state: EditorState.create({ doc: initialValue, extensions }),
       parent: editorWrapper,
       root: shadow,
     });
