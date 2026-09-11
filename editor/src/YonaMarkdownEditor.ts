@@ -130,9 +130,9 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     // 미리보기 패널 - 기본은 숨김(에디터 뷰가 기본 표시). preview 버튼을 누르면 이 패널과
     // editorWrapper가 서로 hidden을 토글한다(단일 뷰 토글 - side-by-side 아님).
-    // "markdown-wrap" 클래스는 4단계 지시(A.2)대로 부여했다 - 그 클래스가 사이트에서 내는
-    // 실제 시각 효과를 Shadow DOM 안에 어떻게 재현할지는 preview.ts/toolbar.ts 상단 주석에
-    // 적어둔 대로 아직 결정 대기 중이다.
+    // "markdown-wrap" 클래스는 사이트 전역 클래스명과 시맨틱을 맞추기 위해 그대로 부여해뒀지만,
+    // Shadow DOM 안에서는 전역 yobi.css가 닿지 않으므로 실제 시각 효과는 toolbar.ts의
+    // style 문자열에 .preview-wrap 셀렉터로 전체 재현해뒀다(사용자 확정, 2026-09-11).
     const previewPanel = document.createElement("div");
     previewPanel.setAttribute("part", "preview");
     previewPanel.className = "preview-wrap markdown-wrap";

@@ -279,13 +279,14 @@ export const TOOLBAR_STYLES = `
 }
 
 /* 4단계(미리보기): 컨테이너 자체(테두리/여백/최소높이)는 editor-wrapper와 시각적으로
-   맞췄다. 안쪽 콘텐츠 타이포그래피(제목 크기/코드블록 배경/링크 색/리스트 간격 등, 사이트
-   전역 .markdown-wrap 클래스가 실제로 내는 효과 - yobi.css 11331행대)와 코드블록 구문강조
-   색상(highlight.js 테마, /javascripts/lib/highlight/styles/default.css)은 둘 다 전역
-   <link>로 로드되어 Shadow DOM 경계를 넘지 못한다 - 이 안에 어떻게(전체 재현/부분 재현/다른
-   방식) 가져올지는 아직 결정하지 않았다(4단계 지시 A.2, 확인 대기 - preview.ts 상단 주석
-   참고). 클래스명 "markdown-wrap" 자체는 지시대로 부여해뒀으니 결정되는 즉시 이 스타일
-   블록에 규칙만 추가하면 된다. */
+   맞췄다. 안쪽 콘텐츠 타이포그래피(제목 크기/코드블록 배경/링크 색/리스트 간격 등)와
+   코드블록 구문강조 색상은 전역 <link>(yobi.css의 .markdown-wrap 규칙, 11331행대 /
+   highlight.js styles/default.css)로 로드되어 Shadow DOM 경계를 넘지 못한다 - 사용자
+   확정(2026-09-11, 4단계 완료 시점): 3단계 툴바와 동일한 원칙대로 "전체 재현"을 택해,
+   두 스타일시트의 실제 규칙을 여기 그대로 옮겨 적었다(전역 <link> 참조나 부분 발췌가
+   아니라 컴포넌트 자체 완결 - yobi.css/highlight 테마가 나중에 바뀌면 이 블록도 손으로
+   맞춰야 하는 트레이드오프는 감수). popover/markdown-before 등 이 미리보기 패널에서
+   실사용되지 않는 규칙(부트스트랩 popover 연동, 편집 중 숨김 토글)은 제외했다. */
 .preview-wrap {
   box-sizing: border-box;
   min-height: var(--yona-md-min-height);
@@ -293,5 +294,274 @@ export const TOOLBAR_STYLES = `
   border: 1px solid var(--yona-md-border-color);
   border-radius: 0 0 var(--yona-md-radius) var(--yona-md-radius);
   overflow: auto;
+}
+
+/* yobi.css .markdown-wrap (11331~11559행대) 그대로 이식 - 컨테이너 자체 여백(padding)은
+   위 .preview-wrap이 이미 담당하므로 원본의 padding 선언은 가져오지 않는다. */
+.preview-wrap {
+  font-size: 1.1em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  font-feature-settings: "kern" 1;
+  font-kerning: normal;
+  word-wrap: break-word;
+}
+.preview-wrap > *:first-child {
+  margin-top: 0 !important;
+}
+.preview-wrap > *:last-child {
+  margin-bottom: 0 !important;
+}
+.preview-wrap ul,
+.preview-wrap ol {
+  padding: 0 0 5px 2.5em;
+  font-weight: normal;
+  margin-left: 0;
+}
+.preview-wrap li {
+  margin-bottom: 5px;
+  line-height: 1.6em;
+}
+.preview-wrap li > ul {
+  margin-bottom: 0;
+  padding: 5px 0 0 2.5em;
+}
+.preview-wrap li > ul :last-of-type {
+  padding-bottom: 0;
+}
+.preview-wrap li > ul pre {
+  padding-bottom: 10px !important;
+}
+.preview-wrap li > p {
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+.preview-wrap a {
+  color: #4183c4;
+  text-decoration: none;
+}
+.preview-wrap a:hover {
+  color: #4183c4;
+  text-decoration: underline;
+}
+.preview-wrap a:hover span {
+  text-decoration: none;
+}
+.preview-wrap a:active {
+  color: #4183c4;
+  text-decoration: none;
+}
+.preview-wrap h1,
+.preview-wrap h2,
+.preview-wrap h3 {
+  line-height: 40px;
+  margin-bottom: 16px;
+}
+.preview-wrap h1 {
+  font-size: 2em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #eee;
+  width: 95%;
+  font-weight: 600;
+}
+.preview-wrap h1 .head-anchor,
+.preview-wrap h2 .head-anchor,
+.preview-wrap h3 .head-anchor,
+.preview-wrap h4 .head-anchor,
+.preview-wrap h5 .head-anchor {
+  margin-left: 3px;
+  opacity: 0;
+}
+.preview-wrap h1:hover .head-anchor,
+.preview-wrap h2:hover .head-anchor,
+.preview-wrap h3:hover .head-anchor,
+.preview-wrap h4:hover .head-anchor,
+.preview-wrap h5:hover .head-anchor {
+  opacity: 1;
+}
+.preview-wrap h2 {
+  line-height: 1.25;
+  font-size: 1.5em;
+  width: 95%;
+  padding: 0 0 0.3em 0;
+  border-bottom: 1px solid #eaecef;
+}
+.preview-wrap h3 {
+  margin: 1em 0 5px;
+  font-size: 1.25em;
+  padding: 0;
+}
+.preview-wrap h4 {
+  font-size: 1.25em;
+  margin-top: 1.2em;
+  padding: 0;
+}
+.preview-wrap h5 {
+  font-size: 1em;
+  margin-top: 20px;
+}
+.preview-wrap hr {
+  height: 1px;
+  margin: 10px 0;
+  border: 0;
+  color: #ccc;
+  background-color: #ccc;
+}
+.preview-wrap p {
+  margin: 0 0 12px 0;
+  line-height: 1.6em;
+}
+.preview-wrap blockquote p {
+  font-size: 0.9em;
+  font-weight: normal;
+}
+.preview-wrap code {
+  padding: 5px 5px 2px 5px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-family: Consolas, "Menlo", "Monaco", "Ubuntu Mono", "source-code-pro", monospace;
+  font-size: 13px;
+}
+.preview-wrap code .title {
+  font-size: inherit;
+}
+.preview-wrap blockquote {
+  border-left: 4px solid #DDD;
+  padding: 0 15px;
+  color: #777;
+}
+.preview-wrap li > img {
+  max-width: 80%;
+}
+.preview-wrap p > input[type='checkbox'] {
+  vertical-align: text-top;
+}
+.preview-wrap li > input[type='checkbox'] {
+  vertical-align: top;
+}
+.preview-wrap img {
+  max-width: 100%;
+  margin: 10px 0;
+  padding: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  max-height: 600px;
+}
+.preview-wrap > ul {
+  line-height: 20px;
+  list-style: disc;
+  margin-bottom: 16px;
+}
+.preview-wrap ul ul,
+.preview-wrap ol ul {
+  list-style: circle;
+}
+.preview-wrap ul ul ul,
+.preview-wrap ol ul ul,
+.preview-wrap ol ol ul,
+.preview-wrap ul ol ul {
+  list-style: square;
+}
+.preview-wrap ol {
+  line-height: 1.6em;
+  list-style: decimal;
+}
+.preview-wrap pre {
+  font-size: 1em;
+  background-color: #EFEFEF;
+  padding: 10px;
+  margin: 10px 0;
+  word-break: normal;
+  border: none;
+}
+.preview-wrap pre code {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.preview-wrap table {
+  border-collapse: collapse;
+  margin: 15px 15px;
+}
+.preview-wrap table th {
+  padding: 5px;
+  border: 1px solid #dcddde;
+  background-color: #f7f7f7;
+  min-width: 45px;
+}
+.preview-wrap table td {
+  padding: 5px;
+  border: 1px solid #dcddde;
+  word-break: break-all;
+}
+
+/* highlight.js styles/default.css 그대로 이식 (100줄 전체 - hljs.highlightElement()가 이
+   .preview-wrap 안의 pre code에 붙이는 .hljs-* 클래스를 이 안에서도 동일하게 채색). */
+.preview-wrap .hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0.5em;
+  background: #F0F0F0;
+}
+.preview-wrap .hljs,
+.preview-wrap .hljs-subst {
+  color: #444;
+}
+.preview-wrap .hljs-comment {
+  color: #888888;
+}
+.preview-wrap .hljs-keyword,
+.preview-wrap .hljs-attribute,
+.preview-wrap .hljs-selector-tag,
+.preview-wrap .hljs-meta-keyword,
+.preview-wrap .hljs-doctag,
+.preview-wrap .hljs-name {
+  font-weight: bold;
+}
+.preview-wrap .hljs-type,
+.preview-wrap .hljs-string,
+.preview-wrap .hljs-number,
+.preview-wrap .hljs-selector-id,
+.preview-wrap .hljs-selector-class,
+.preview-wrap .hljs-quote,
+.preview-wrap .hljs-template-tag,
+.preview-wrap .hljs-deletion {
+  color: #880000;
+}
+.preview-wrap .hljs-title,
+.preview-wrap .hljs-section {
+  color: #880000;
+  font-weight: bold;
+}
+.preview-wrap .hljs-regexp,
+.preview-wrap .hljs-symbol,
+.preview-wrap .hljs-variable,
+.preview-wrap .hljs-template-variable,
+.preview-wrap .hljs-link,
+.preview-wrap .hljs-selector-attr,
+.preview-wrap .hljs-selector-pseudo {
+  color: #BC6060;
+}
+.preview-wrap .hljs-literal {
+  color: #78A960;
+}
+.preview-wrap .hljs-built_in,
+.preview-wrap .hljs-bullet,
+.preview-wrap .hljs-code,
+.preview-wrap .hljs-addition {
+  color: #397300;
+}
+.preview-wrap .hljs-meta {
+  color: #1f7199;
+}
+.preview-wrap .hljs-meta-string {
+  color: #4d99bf;
+}
+.preview-wrap .hljs-emphasis {
+  font-style: italic;
+}
+.preview-wrap .hljs-strong {
+  font-weight: bold;
 }
 `;

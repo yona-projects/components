@@ -15,15 +15,12 @@
 // 첨부)가 이미 모든 fetch() 호출에 적용되므로 컴포넌트가 CSRF 토큰을 직접 알거나 다룰 필요가
 // 없다.
 //
-// 미확인/보류 중인 판단 지점(4단계 지시 A.2, 사용자 확인 대기 - 아래 YonaMarkdownEditor.ts의
-// 관련 주석도 참고): 사이트 전역 `.markdown-wrap` 콘텐츠 스타일(yobi.css)과
-// highlight.js 테마(`/javascripts/lib/highlight/styles/default.css`)는 전부 Shadow DOM
-// 경계를 넘지 못한다(둘 다 전역 <link>로 문서 최상위에 로드됨, CSS 규칙은 shadow 경계를 넘어
-// 셀렉터 매칭이 되지 않는다 - 상속 가능한 속성만 예외). 이 패널에는 `.markdown-wrap` 클래스명
-// 자체는 부여했지만(지시 A.2 문구 그대로), 그 클래스가 사이트에서 실제로 내는 시각 효과(제목
-// 크기/코드블록 배경/링크 색/리스트 간격/hljs 구문 색상 등, yobi.css 11331~11600행대 + 위 hljs
-// 테마 CSS)를 Shadow DOM 안에 어떤 방식으로(전체 재현/부분 재현/링크 참조 등) 가져올지는
-// 결정하지 않고 비워뒀다.
+// 스타일: 사이트 전역 `.markdown-wrap` 콘텐츠 스타일(yobi.css)과 highlight.js 테마
+// (`/javascripts/lib/highlight/styles/default.css`)는 둘 다 전역 <link>로 문서 최상위에
+// 로드되어 Shadow DOM 경계를 넘지 못한다(CSS 규칙은 shadow 경계를 넘어 셀렉터 매칭이 되지
+// 않는다 - 상속 가능한 속성만 예외). 사용자 확정(2026-09-11, 4단계 완료 시점): 두 스타일시트의
+// 실제 규칙을 컴포넌트 자체 Shadow DOM 스타일로 그대로 옮겨 적는 "전체 재현"을 택했다(3단계
+// 툴바와 동일 원칙). 실제 CSS는 toolbar.ts의 style 문자열(.preview-wrap 하위) 참고.
 
 /** 요청 순번을 매기고 "이 응답이 여전히 최신 요청에 대한 것인가"를 판정하는 순수 로직. */
 export class RequestSequencer {
