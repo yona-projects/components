@@ -1,0 +1,24 @@
+{
+  "name": "@yona-projects/markdown-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CodeMirror 6 기반 마크다운 에디터 Web Component (<yona-markdown-editor>). yona의 EasyMDE(CodeMirror5)+Tribute.js 조합을 대체.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.0",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/state": "6.7.4",
+    "@codemirror/view": "6.43.11"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2",
+    "typescript": "^5.9.3"
+  }
+}

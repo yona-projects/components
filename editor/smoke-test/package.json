@@ -1,0 +1,13 @@
+{
+  "name": "yona-markdown-editor-smoke-test",
+  "private": true,
+  "version": "0.0.0",
+  "description": "1단계(빌드 인프라) 검증용 Playwright 스모크 테스트. 정식 회귀 스위트 아님.",
+  "type": "module",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
