@@ -79,6 +79,12 @@ export class YonaMarkdownEditor extends HTMLElement {
   private previewPanel: HTMLDivElement | null = null;
   private previewController: PreviewController | null = null;
   private previewActive = false;
+  // form.reset() 대응(아래 connectedCallback 내 reset 리스너 주석 참고)을 위해 최초 로드 시점의
+  // 값을 인스턴스 필드로 보존해둔다 - connectedCallback의 로컬 변수로는 리스너 콜백에서 접근할
+  // 수 없다.
+  private initialValue = "";
+  private formResetHandler: (() => void) | null = null;
+  private form: HTMLFormElement | null = null;
 
   connectedCallback(): void {
     if (this.shadowRoot) {
@@ -88,9 +94,12 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     // "value"는 슬롯 콘텐츠(서버가 th:text로 채워 넣는 이 엘리먼트의 텍스트 콘텐츠) 또는
     // value 속성 중 하나로 온다 - value 속성이 명시적으로 있으면 그것을 우선한다.
+    // 인스턴스 필드로 보존해둔다(form.reset() 시 CM6 뷰를 이 값으로 되돌리기 위해 - 아래
+    // reset 리스너 등록 참고).
     const initialValue = this.hasAttribute("value")
       ? (this.getAttribute("value") ?? "")
       : (this.textContent ?? "");
+    this.initialValue = initialValue;
 
     const name = this.getAttribute("name") ?? "";
     const editorMode = this.getAttribute("editor-mode") ?? "";
@@ -118,6 +127,12 @@ export class YonaMarkdownEditor extends HTMLElement {
     textarea.setAttribute("data-editor-mode", editorMode);
     textarea.setAttribute("markdown", "true");
     textarea.value = initialValue;
+    // .value만 세팅하면 네이티브 textarea의 "기본값"은 빈 문자열로 남는다 - 부모 <form>에서
+    // form.reset()이 호출되면 브라우저가 .value를 defaultValue(즉 빈 문자열)로 되돌려버려,
+    // Shadow DOM 안 CM6 에디터(전혀 영향받지 않음)와 이 textarea가 서로 다른 내용을 들고 있는
+    // 상태가 된다. defaultValue를 initialValue로 맞춰두면 네이티브 reset이 이 textarea 자체를
+    // 최초 로드 값으로 되돌리므로, 아래 reset 리스너는 CM6 쪽만 같은 값으로 맞춰주면 된다.
+    textarea.defaultValue = initialValue;
     // Shadow DOM 안의 CM6가 실제 편집 UI를 담당하므로, light DOM textarea 자체는 화면에
     // 보이지 않아도 된다(기존 EasyMDE가 원본 textarea를 display:none으로 숨기던 것과 동일한
     // 역할 분담) - 다만 폼 제출/멘션 셀렉터/임시저장 등은 이 textarea의 DOM 존재와 값에 계속
@@ -125,6 +140,27 @@ export class YonaMarkdownEditor extends HTMLElement {
     textarea.style.display = "none";
     this.appendChild(textarea);
     this.textarea = textarea;
+
+    // 부모 <form>에서 form.reset()이 호출되면(사용자의 실수 클릭, 다른 스크립트의 명시적
+    // reset() 호출 등) 네이티브 reset이 위 textarea.value를 이미 defaultValue(initialValue)로
+    // 되돌린 "이후"에 이 리스너가 실행된다("reset" 이벤트는 필드들이 리셋된 이후에 버블링되어
+    // 발생한다) - 이제 Shadow DOM 안 CM6 뷰만 같은 initialValue로 맞춰주면 textarea와 에디터가
+    // 다시 일치한다. closest()는 light DOM 조상을 그대로 타고 올라가므로 이 커스텀 엘리먼트가
+    // light DOM에 있는 한 항상 동작한다(위 renderUrl/mentionUrl 조회와 동일한 근거).
+    const form = this.closest("form");
+    if (form) {
+      const handler = () => {
+        if (!this.view) {
+          return;
+        }
+        this.view.dispatch({
+          changes: { from: 0, to: this.view.state.doc.length, insert: this.initialValue },
+        });
+      };
+      form.addEventListener("reset", handler);
+      this.form = form;
+      this.formResetHandler = handler;
+    }
 
     const shadow = this.attachShadow({ mode: "open" });
 
@@ -236,6 +272,11 @@ export class YonaMarkdownEditor extends HTMLElement {
     this.previewController?.dispose();
     this.view?.destroy();
     this.view = null;
+    if (this.form && this.formResetHandler) {
+      this.form.removeEventListener("reset", this.formResetHandler);
+    }
+    this.form = null;
+    this.formResetHandler = null;
   }
 
   /**
@@ -265,7 +306,7 @@ export class YonaMarkdownEditor extends HTMLElement {
     // (yona.temporarySaveHandler.js) 등 이 textarea를 직접 구독하는 기존 jQuery 핸들러에
     // 값이 바뀌었다는 신호를 보낸다.
     this.textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    this.textarea.dispatchEvent(new Event("keyup", { bubbles: true }));
+    this.textarea.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
   }
 }
 
