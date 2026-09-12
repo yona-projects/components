@@ -13,6 +13,9 @@ import {
   sortIssues,
   filterEmojis,
   matchMentionTrigger,
+  userToCompletion,
+  emojiToCompletion,
+  issueToCompletion,
 } from "../src/mention.js";
 
 // ---------------------------------------------------------------------------
@@ -156,4 +159,81 @@ test("sortIssues: 정확히 일치하지 않으면 issueNo/title 안에서 더 �
   const result = sortIssues("12", items);
   // "912"는 issueNo 안에 "12"가 인덱스 1에서 발견되어(10^1=10) title 매칭(99)보다 우선한다.
   assert.equal(result[0]?.issueNo, "912");
+});
+
+// ---------------------------------------------------------------------------
+// userToCompletion/emojiToCompletion/issueToCompletion - 저장형 XSS 방지(서버 응답값 이스케이프)
+//
+// 서버(MentionController.toMentionMaps/buildIssueMentionList)는 표시 이름/아바타 URL/이슈 제목을
+// 이스케이프 없이 그대로 JSON으로 돌려준다(이 REST 엔드포인트는 HTML 렌더링 경로의 OWASP
+// sanitizer를 거치지 않음). addToOptions 렌더러가 완성된 yonaHtml을 span.innerHTML에 그대로
+// 꽂으므로(mention.ts), 이 함수들이 보간 시점에 각 필드를 이스케이프하지 않으면 표시 이름/이슈
+// 제목에 담긴 태그가 멘션 후보를 띄우는 모든 사용자의 브라우저에서 그대로 실행된다.
+// ---------------------------------------------------------------------------
+
+test("userToCompletion: name/loginid에 담긴 HTML 태그가 이스케이프되어 실행 불가능한 텍스트로만 남는다", () => {
+  const malicious = {
+    loginid: "attacker",
+    name: "<img src=x onerror=alert(1)>",
+    image: "/avatar.png",
+    searchText: "attacker",
+  };
+  const completion = userToCompletion(malicious, "");
+  assert.ok(
+    !completion.yonaHtml.includes("<img src=x onerror=alert(1)>"),
+    `payload가 이스케이프 없이 그대로 남아있음: ${completion.yonaHtml}`,
+  );
+  assert.match(completion.yonaHtml, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test("userToCompletion: image(아바타 URL)의 홑따옴표를 이스케이프해 속성 탈출을 막는다", () => {
+  const malicious = {
+    loginid: "attacker",
+    name: "Attacker",
+    image: "x' onerror='alert(1)",
+    searchText: "attacker",
+  };
+  const completion = userToCompletion(malicious, "");
+  // 이스케이프 없이 원본 그대로 꽂히면 src='x' onerror='alert(1)' 형태로 속성이 깨져 나온다.
+  assert.ok(
+    !completion.yonaHtml.includes("src='x' onerror='alert(1)'"),
+    `홑따옴표가 이스케이프되지 않아 속성이 깨짐: ${completion.yonaHtml}`,
+  );
+  assert.match(completion.yonaHtml, /src='x&#39; onerror=&#39;alert\(1\)'/);
+});
+
+test("userToCompletion: 이스케이프 대상 문자가 없는 정상 값은 기존과 동일하게 렌더링된다(회귀 방지)", () => {
+  const normal = {
+    loginid: "alice",
+    name: "Alice Kim",
+    image: "https://example.com/avatar.png",
+    searchText: "alice",
+  };
+  const completion = userToCompletion(normal, "");
+  assert.equal(
+    completion.yonaHtml,
+    "<img style='width:20px;height:20px;' src='https://example.com/avatar.png'> Alice Kim <small>alice</small>",
+  );
+});
+
+test("issueToCompletion: title에 담긴 HTML 태그가 이스케이프된다", () => {
+  const malicious = { issueNo: "42", title: "<img src=x onerror=alert(1)>" };
+  const completion = issueToCompletion(malicious, "");
+  assert.ok(
+    !completion.yonaHtml.includes("<img src=x onerror=alert(1)>"),
+    `payload가 이스케이프 없이 그대로 남아있음: ${completion.yonaHtml}`,
+  );
+  assert.match(completion.yonaHtml, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test("issueToCompletion: 정상 값은 기존과 동일하게 렌더링된다(회귀 방지)", () => {
+  const normal = { issueNo: "42", title: "Fix login bug" };
+  const completion = issueToCompletion(normal, "");
+  assert.equal(completion.yonaHtml, "<small>#42</small> Fix login bug");
+});
+
+test("emojiToCompletion: EMOJIS 고정 배열은 실제로 안전하지만 방어적으로 동일한 이스케이프가 적용돼도 정상 값 렌더링은 그대로다(회귀 방지)", () => {
+  const item = { name: "smile", content: "🙂" };
+  const completion = emojiToCompletion(item, "");
+  assert.equal(completion.yonaHtml, "🙂 <small>smile</small>");
 });

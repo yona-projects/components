@@ -332,8 +332,25 @@ async function fetchIssueMentions(
   }
 }
 
-function userToCompletion(item: UserMentionItem, query: string): YonaMentionCompletion {
-  const html = `<img style='width:20px;height:20px;' src='${item.image}'> ${item.name} <small>${item.loginid}</small>`;
+/**
+ * XSS 방지용 최소 HTML 이스케이프. userToCompletion/issueToCompletion(그리고 방어적으로
+ * emojiToCompletion)이 서버 응답값(표시 이름/아바타 URL/이슈 제목 등 - 사용자가 통제 가능하고
+ * 서버 쪽에서 이스케이프되지 않는 값)을 yonaHtml 템플릿에 보간하기 전에 반드시 이 함수를 거친다.
+ * yonaHtml은 addToOptions 렌더러가 그대로 span.innerHTML에 꽂으므로(mention.ts 하단), 여기서
+ * 이스케이프하지 않으면 저장형 XSS로 이어진다. `'`까지 이스케이프하는 이유는 userToCompletion의
+ * img[src] 보간이 홑따옴표로 속성값을 감싸기 때문(속성 탈출 방지).
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function userToCompletion(item: UserMentionItem, query: string): YonaMentionCompletion {
+  const html = `<img style='width:20px;height:20px;' src='${escapeHtml(item.image)}'> ${escapeHtml(item.name)} <small>${escapeHtml(item.loginid)}</small>`;
   return {
     label: item.loginid,
     apply: `@${item.loginid} `,
@@ -341,8 +358,8 @@ function userToCompletion(item: UserMentionItem, query: string): YonaMentionComp
   };
 }
 
-function emojiToCompletion(item: EmojiItem, query: string): YonaMentionCompletion {
-  const html = `${item.content} <small>${item.name}</small>`;
+export function emojiToCompletion(item: EmojiItem, query: string): YonaMentionCompletion {
+  const html = `${escapeHtml(item.content)} <small>${escapeHtml(item.name)}</small>`;
   return {
     label: item.name,
     apply: `${item.content} `,
@@ -350,8 +367,8 @@ function emojiToCompletion(item: EmojiItem, query: string): YonaMentionCompletio
   };
 }
 
-function issueToCompletion(item: IssueMentionItem, query: string): YonaMentionCompletion {
-  const html = `<small>#${item.issueNo}</small> ${item.title}`;
+export function issueToCompletion(item: IssueMentionItem, query: string): YonaMentionCompletion {
+  const html = `<small>#${escapeHtml(item.issueNo)}</small> ${escapeHtml(item.title)}`;
   return {
     label: item.issueNo,
     apply: `#${item.issueNo} `,
