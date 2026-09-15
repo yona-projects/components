@@ -24,18 +24,19 @@ src/
   typeahead/      - 자동완성 입력(YonaTypeahead.vue, element.ts - 메뉴는 Shadow DOM,
                     <input>만 <slot>으로 라이트 DOM 투과, :host{position:relative}로
                     위치 지정)
+  attachments/    - 첨부파일 업로더(YonaAttachments.vue, element.ts - 드롭존/버튼/카드
+                    목록은 Shadow DOM, 외부 <textarea>는 configure()로 명령형 연동)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
-                    마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드는
-                    시각 템플릿이 없거나(드롭다운) 부트스트랩 버튼 디자인 시스템이
-                    필요하거나(다이얼로그) 정적 마크업으로 데모하기 애매해서(타입어헤드,
-                    JS로 감싸야 함) 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
+                    마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
+                    어태치먼트는 시각 템플릿이 없거나 정적 마크업으로 데모하기
+                    애매해서 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts  - 위젯별 순수 함수 단위 테스트
   (파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
-  dialog-element.mjs, typeahead-element.mjs
+  dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -292,27 +293,75 @@ scoped 버그 회피 패턴 재사용) 메뉴를 순수 CSS(`top: 100%`)만으�
 기반으로 진짜 자동완성("UrgentCat")이 뜨는지, (d) 클릭 선택 시 입력값이
 정확히 반영되는지까지 전부 실서버 화면에서 확인했다.
 
-## 여기서 마감한 나머지 후보들
+## attachments 위젯
 
-이 일곱 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드) 이후
-`yona.Attachments.js`+`yona.Files.js`/`yona.CodeCommentBox.js`도 실제 마크업·
-연동 구조까지 조사했다.
-전부 "Vue SFC로 깔끔하게 바꿀 수 있는 자기완결적 위젯"은 아니었다 - 위젯 후보를
-평가할 때 참고할 반례로 이유를 남긴다.
+`yona.Attachments.js`(+`yona.Files.js`의 XHR2 업로드 부분)를 다시 썼다.
+`common/uploadForm.html`(드롭존+업로드 버튼+첨부파일 카드 목록)의 실제 대체
+대상이고, 이슈/게시글/코드리뷰/마일스톤 작성 폼 등 앱 전역에서 쓰인다.
+
+**처음엔 "위젯 경계가 아예 없다"고 판단했었다** - 실제로 쪼개보니 근거가
+없었다:
+1. **컨테이너 내부를 파고드는 외부 코드가 있다고 생각했으나 실제로는 0건**
+   이었다 - 첨부파일 컨테이너를 참조하는 5개 파일(`board.View.js`/
+   `code.Diff.js`/`code.SvnDiff.js`/`issue.View.js`/`milestone.View.js`)을
+   전수 확인한 결과, 전부 컨테이너 자기 자신을 찾거나(`getElementById`/
+   `querySelector(".upload-wrap")`) `._isYonaAttachment` expando만
+   확인했다 - 내부 DOM을 참조하는 코드는 없었다.
+2. **첨부파일 카드 마크업이 호출부마다 다른 커스텀 템플릿(`sTplFileItem`)
+   이라고 생각했으나**, 실제로 이 옵션을 오버라이드하는 호출부는 0건이었다
+   (전부 `site/layout.html`의 전역 `<script id="tplAttachedFile">`를 그대로
+   읽어 쓴다) - 즉 실질적으로 닫힌 계약이라 Vue가 선언적으로 그대로 그린다.
+3. **`<input type="file">`를 외부에서 직접 참조하는 코드도 0건**이었다.
+
+그래서 컨테이너 전체(드롭존/버튼/카드 목록)를 Shadow DOM에서 Vue가 소유한다.
+단 하나, `<textarea>`(마크다운 에디터)만 이 컨테이너 밖 다른 위치에 있는
+완전히 별개의 엘리먼트라 슬롯으로 투과시킬 수 없다 - 드롭다운/다이얼로그와
+동일하게 `configure({ textarea, ... })` 명령형 API로 외부 참조를 주입받는다.
+`yona.Files.js`(XHR2 진행률/드래그/붙여넣기 엔진, 문자열 네임스페이스 pub-sub)는
+그대로 vanilla로 남겨뒀다 - 이 컴포넌트는 그 이벤트 버스를 구독하지 않고
+업로드 로직을 자체적으로 소유한다(아바타 업로드는 `yona.Files.js`를 독립적으로
+직접 쓰는 별개 소비자라 영향 없음).
+
+**실제 대치 검증 중 발견한 진짜 버그**: 원본은 붙여넣기(paste)가 업로드
+컨테이너가 아니라 **실제 마크다운 에디터의 `<textarea>`에 포커스가 있을 때
+동작**한다(`yona.Files.js`가 `welTextarea`에 직접 리스너를 붙임) - 처음엔
+이 컴포넌트 자신의 템플릿 루트에 `@paste`를 걸었는데, 그러면 실제 사용
+시나리오(에디터에 포커스를 두고 이미지 붙여넣기)에서 **절대 발동하지
+않는다**(완전히 다른 DOM 위치라 이벤트가 전파될 경로 자체가 없음). `configure()`가
+외부 textarea 참조를 받는 시점에 `addEventListener`로 직접 붙이도록 고쳤다 -
+스모크 테스트에 회귀 방지 테스트를 추가했다(합성 `ClipboardEvent`를 textarea에
+직접 디스패치해 카드가 실제로 생성되는지 확인).
+
+또한 `yona.Files.js._getUploader()`도 호출부(`yona.issue.Write.js` 등)가
+`new yona.Attachments(...)`보다 **먼저** 무조건 호출하는 진입점이라, `<yona-attachments>`
+컨테이너에도 자기 자신의 (이제는 못 찾는) 라이트 DOM 셀렉터 기반 리스너를 걸려고
+시도해 컴포넌트 자신의 처리와 충돌(업로드 중복 등)할 뻔했다 - 태그명으로 판별해
+그 경우엔 이벤트 연결만 건너뛰도록 했다(반환값 모양과 `data-namespace` 설정은
+그대로 유지해 호출부의 나머지 흐름은 안 깨지게 함).
+
+**실대치 검증**: `issue/create.html`의 `#upload` 컨테이너를 실제로
+`<yona-attachments>`로 교체해 이슈 작성 폼에서 전체 플로우를 실서버로
+확인했다 - 실제 파일 업로드(`/files` 실제 POST) → 완료된 카드 클릭 시 실제
+마크다운 에디터(`<yona-markdown-editor>`)의 CM6에 링크가 동기화되는지 → 실제
+폼 제출 → 저장된 이슈 페이지에 본문과 첨부파일 카드(다운로드 링크 포함)가
+실제로 영속되어 나타나는지까지 전부 확인했다.
+
+**하위 호환**: `yona.Attachments.js`도 하이브리드 어댑터로 다시 썼다 -
+컨테이너가 `<yona-attachments>`(태그명으로 판별)면 `configure()`로 위임하고,
+그렇지 않으면 원본 vanilla 구현이 처리한다.
+
+## 진짜로 여기서 마감한 후보들
+
+여덟 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트)을 거치며 배운 것: "위젯 경계가 없다"는 판단은 거의 항상
+검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments 넷 다 처음엔 이
+목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다. 아래는 실제로
+조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드) 자체
+템플릿이 없는(Calendar/TomSelect) 경우만 남았다.
 
 - **`yona.ui.Tabs.js`**: 유일한 동작인 `_restoreTab()`이 legacy 버그(`"toggle" ==
   "tab"`가 항상 false로 평가됨, v1.6부터 그대로)로 처음부터 완전한 no-op이다 -
   포팅할 실제 로직이 없다.
-- **`yona.CodeCommentBox.js` + `common/reviewForm.html`**: 위젯이 아니라
-  `yona.code.Diff.js`(861줄, diff 뷰)에 결합된 DOM 재배치 오케스트레이션이다 - 페이지당
-  하나뿐인 폼을 diff 테이블의 여러 위치로 옮겨 재사용하고, 벤더 에디터의 버그를
-  `cloneNode` 트릭으로 우회한다. "템플릿을 선언적으로 다시 그리는" 종류의 문제가
-  아니다.
-- **`yona.Attachments.js`(750줄) + `yona.Files.js`(918줄)**: 이슈/게시글/코드리뷰/
-  마일스톤/아바타 업로드 등 앱 전역에서 재사용되는 핵심 서비스다. 첨부파일 카드
-  목록도 정적 템플릿이 아니라 `$yona.tmpl()`로 매 순간 동적 생성되고, 컨테이너를
-  Shadow DOM으로 감싸면 이 서비스들이 쓰는 `elContainer.querySelector(...)`가 전부
-  깨진다(에디터/스위치에서 이미 겪은 문제의 훨씬 큰 버전).
 - **`yona.ui.Calendar.js`/`yona.ui.TomSelect.js`**: 각각 Flatpickr/Tom Select라는
   서드파티 라이브러리의 얇은 설정 래퍼일 뿐, Vue가 선언적으로 다시 그릴 자체
   템플릿이 없다(실제 위젯 UI는 라이브러리가 `document.body`에 직접 그린다).
@@ -320,10 +369,37 @@ scoped 버그 회피 패턴 재사용) 메뉴를 순수 CSS(`top: 100%`)만으�
   인스턴스화 호출 0건, 대상 마크업(`#compare`/`#mergely`) 0건, 심지어 의존 라이브러리
   (`$.fn.mergely`)조차 저장소에 존재하지 않는다.
 
-`yona.ui.Dialog.js`/`yona.ui.Dropdown.js`/`yona.ui.Typeahead.js`는 처음엔 이 목록에
-넣었었다(전역 버튼 CSS 클래스/전역 dropdown 델리게이트/정적 템플릿 부재 문제) - 하지만
-셋 다 스위치/에디터에서 이미 검증한 "열린 부분은 라이트 DOM에 남기고 Vue는 얇은 행동
-레이어만 맡는다"는 탈출구로 풀리는 문제였다. 셋 다 위 각 위젯 절에서 실제로 구현·
+## 다음 후보(설계만 - 아직 구현 안 함): CodeCommentBox
+
+`yona.CodeCommentBox.js` + `common/reviewForm.html`도 처음엔 "위젯이 아니라
+diff 뷰에 결합된 DOM 재배치 오케스트레이션이라 경계가 없다"고 판단했었다 -
+다시 쪼개보니 그렇지 않았다:
+
+1. **DOM 재배치**(`_placeReviewForm`가 매번 `appendChild`로 폼을 diff 테이블의
+   여러 위치로 옮김) → Vue의 `<Teleport :to="...">`가 정확히 이 문제(상태에
+   따라 다른 위치에 렌더링)를 위한 선언적 기능이다.
+2. **벤더 에디터 강제 재마운트**(`_remountEditor`가 `cloneNode`로 매번 새
+   인스턴스를 만듦 - 벤더 에디터가 disconnected/reconnected를 재초기화하지
+   않는 버그 우회용)는 위젯 자체의 한계가 아니라 **원본 vanilla 에디터의
+   버그를 우회**하려던 것이었다 - 이미 만든 `<yona-markdown-editor-vue>`로
+   바꾸면 "닫을 때 초기화"가 반응형 상태 초기화 한 줄이면 끝나 이 트릭 자체가
+   필요 없어진다.
+3. **트리거 로직**(언제/어디에 뜰지 결정, 드래그 선택으로 blockInfo 계산)은
+   `yona.code.Diff.js`(861줄, diff 렌더링) 소유라 안 건드리고, dialog/toast와
+   동일한 패턴으로 `show(target, options)/hide()` 공개 계약만 유지하면 된다.
+4. **첨부파일 업로드 폼**(`common/uploadForm.html`)은 위 `<yona-attachments>`를
+   그대로 자식 컴포넌트로 끼워 넣으면 된다.
+
+아직 구현하지 않았다 - 범위가 CodeCommentBox(302줄) + `yona.code.Diff.js`
+연동까지라 지금까지 중 가장 크다.
+
+## (지난 판단 기록) Dialog/Dropdown/Typeahead도 한때 "마감 후보"였다
+
+`yona.ui.Dialog.js`/`yona.ui.Dropdown.js`/`yona.ui.Typeahead.js`는 처음엔 마감
+목록에 넣었었다(전역 버튼 CSS 클래스/전역 dropdown 델리게이트/정적 템플릿 부재
+문제) - 하지만 셋 다 스위치/에디터에서 이미 검증한 "열린 부분은 라이트 DOM에
+남기고 Vue는 얇은 행동 레이어만 맡는다"는 탈출구로 풀리는 문제였다. 셋 다 위
+각 위젯 절에서 실제로 구현·
 실대치 검증까지 마쳤다 - 이 시점에서 확인 가능한 `yona.ui.*` 위젯 후보는 모두 소진했다.
 
 ## 요구 사항
@@ -345,24 +421,25 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 일곱 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+npm run build:elements  # 여덟 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
                          # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
-                         # <yona-typeahead> 네이티브 커스텀 엘리먼트로 한 번에
-                         # (dist-element/, es 모듈 포맷 - 엔트리 7개 + 위젯들이 공유하는
-                         # 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
+                         # <yona-typeahead>/<yona-attachments> 네이티브 커스텀 엘리먼트로
+                         # 한 번에(dist-element/, es 모듈 포맷 - 엔트리 8개 + 위젯들이
+                         # 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 7개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 8개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
-`yona-dialog-element.js`/`yona-typeahead-element.js` + 공유 청크 - 엔트리들이
-상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona
-저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/
-`<yona-help-markdown>`/`<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/
-`<yona-dialog>`/`<yona-typeahead>` - 단, `<yona-typeahead>`는 정적 템플릿에
+`yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`
++ 공유 청크 - 엔트리들이 상대 경로 `import`로 참조하므로 같은 디렉터리에 같이
+있어야 한다)를 yona 저장소에 vendoring하고, 템플릿에 해당 태그
+(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/`<yona-toast>`/
+`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/`<yona-typeahead>`/
+`<yona-attachments>` - 단, `<yona-typeahead>`는 정적 템플릿에
 직접 쓰지 않고 `yona.ui.Typeahead.js` 어댑터가 생성한다)와
 **`<script type="module">`**을 넣으면 됩니다(각 위젯 구현의 세부
 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고). 커스텀 엘리먼트들은
@@ -431,8 +508,16 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
   필터링/정렬/하이라이트가 정확한지, (c) 화살표 키로 활성 항목이 이동하는지,
   (d) Enter/클릭으로 선택 시 입력값이 반영되고 실제 `change` 이벤트가 발생하는지,
   (e) ESC로 메뉴가 닫히는지 확인.
+- `attachments-element.mjs`: `dist-element/yona-attachments-element.js`를 정적
+  HTML(`attachments-element.html`, `<script type="module">` + `configure()`
+  호출)에 로드해 (a) 실제 파일 업로드(모킹된 `/files` 응답) 후 카드가 complete
+  상태가 되는지, (b) hidden input에 실제 id가 반영되는지, (c) 카드 클릭 시
+  실제 마크다운 링크가 외부 textarea에 삽입되는지, (d) 삭제 버튼 클릭 시 실제
+  삭제 요청이 발생하고 카드/링크/hidden input이 정리되는지, (e) **외부
+  textarea에 직접 붙여넣기했을 때** 실제로 업로드가 트리거되는지(실대치에서
+  발견한 리스너 위치 버그의 회귀 방지) 확인.
 
-`*-element.mjs` 일곱 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 여덟 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/

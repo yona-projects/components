@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title></head>
+<body>
+<textarea id="editor-textarea"></textarea>
+<yona-attachments id="target"></yona-attachments>
+<script type="module">
+  import "../dist-element/yona-attachments-element.js";
+  customElements.whenDefined("yona-attachments").then(() => {
+    document.querySelector("yona-attachments").configure({
+      textarea: document.getElementById("editor-textarea"),
+    });
+  });
+</script>
+</body>
+</html>
