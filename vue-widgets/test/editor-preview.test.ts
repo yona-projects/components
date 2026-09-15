@@ -5,7 +5,7 @@
 // 토글되는지는 Playwright가 1차 검증 수단(commands.test.ts와 동일한 분리 원칙).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestSequencer, PreviewController, type HljsLike } from "../src/preview.js";
+import { RequestSequencer, PreviewController, type HljsLike } from "../src/editor/preview.js";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

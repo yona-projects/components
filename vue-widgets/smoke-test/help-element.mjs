@@ -1,12 +1,21 @@
 // defineCustomElement 빌드(dist-element/yona-help-markdown-element.js) 스모크 테스트 -
-// editor2/smoke-test/element.mjs와 동일한 이유. yona 쪽에 실제로 벤더링하는 형태(Vue 앱
-// 부트스트랩 없이 태그 하나로 정적 HTML에 꽂기)와 동일한 방식으로 확인한다.
+// editor-element.mjs와 동일한 이유. yona 쪽에 실제로 벤더링하는 형태(Vue 앱 부트스트랩
+// 없이 태그 하나로 정적 HTML에 꽂기)와 동일한 방식으로 확인한다.
+//
+// es 모듈 포맷(vite.element.config.ts 참고)은 file:// 프로토콜로 직접 열 수 없다 -
+// 브라우저가 file:// 오리진에서의 module script 상대 임포트를 CORS로 막는다(실측 확인).
+// 로컬 정적 서버를 하나 띄워 http://로 열어야 한다.
 import { chromium } from "playwright";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
+import { createServer } from "vite";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pageUrl = "file://" + path.join(__dirname, "element.html");
+const server = await createServer({ root: "..", server: { port: 0 }, logLevel: "warn" });
+await server.listen();
+const address = server.httpServer?.address();
+const port = typeof address === "object" && address !== null ? address.port : null;
+if (!port) {
+  throw new Error("정적 서버 포트를 얻지 못했다");
+}
+const pageUrl = `http://localhost:${port}/smoke-test/help-element.html`;
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -58,6 +67,7 @@ for (const [label, pass] of checks) {
 console.log("콘솔 에러(이미지 404 제외):", unexpectedErrors.length === 0 ? "없음" : unexpectedErrors);
 
 await browser.close();
+await server.close();
 
 if (!allPass) {
   console.error("커스텀 엘리먼트 스모크 테스트 실패");

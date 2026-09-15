@@ -33,12 +33,15 @@ smoke-test/
 - **여전히 독립**: 커스텀 엘리먼트 빌드 산출물(`dist-element/*.js`)은 위젯당 1개 파일로,
   서로 코드를 공유하지 않습니다(각자 Vue 런타임을 포함한 자체 완결 번들 - 원래 커스텀
   엘리먼트가 쓰이는 방식과 동일, yona 템플릿에도 위젯별로 별도 `<script>` 태그로 로드).
-- **빌드 명령 자체는 위젯마다 한 번씩**: Vite/Rollup이 "출력 포맷이 iife/umd면 멀티
-  엔트리를 지원하지 않는다"는 제약이 있어(`vite.element.config.ts`의 `VUE_WIDGET_TARGET`
-  환경변수로 어느 위젯을 빌드할지 고르는 이유), 한 번의 `vite build` 호출로 두 산출물을
-  동시에 뽑아낼 수는 없습니다. `npm run build:elements`가 내부적으로 그 설정 파일을
-  `editor`/`help` 두 값으로 순차 호출해 이 제약을 감춥니다 - 사용자 입장에서는 명령
-  하나로 두 산출물이 다 나옵니다.
+- **커스텀 엘리먼트 빌드는 ES 모듈(`type="module"`) 포맷**: 처음엔 iife로 만들었는데,
+  Rollup 자체가 "iife/umd 포맷은 멀티 엔트리를 지원하지 않는다"는 제약이 있어(번들
+  전체를 하나의 전역 스코프 함수로 감싸는 구조라 엔트리 간 청크를 나누거나 공유할 방법이
+  없기 때문) 위젯마다 별도 `vite build` 호출이 필요했다. es 포맷으로 바꾸니 Vite가 멀티
+  엔트리 + 청크 공유(Vue 런타임을 두 위젯이 `_plugin-vue_export-helper-*.js` 공용 청크로
+  나눠 씀 - iife 시절엔 각자 중복 포함이었다)를 정식 지원해 `npm run build:elements`
+  한 번으로 두 산출물이 다 나온다. 대가는 yona 쪽 `<script>` 태그에 `type="module"`이
+  필요하다는 것뿐(최신 브라우저는 전부 지원) - 다만 **`file://`로 직접 열면 안 된다**(아래
+  스모크 테스트 절 참고, module script의 상대 임포트가 file:// 오리진에서 CORS로 막힌다).
 
 ## 요구 사항
 
@@ -59,18 +62,23 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 두 위젯 각각을 <yona-markdown-editor-vue>/<yona-help-markdown>
-                         # 네이티브 커스텀 엘리먼트로(dist-element/, 위젯당 1개 파일)
+npm run build:elements  # 두 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>
+                         # 네이티브 커스텀 엘리먼트로 한 번에(dist-element/, es 모듈 포맷 -
+                         # yona-markdown-editor-vue-element.js/yona-help-markdown-element.js
+                         # + 두 위젯이 공유하는 _plugin-vue_export-helper-*.js 청크)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/yona-markdown-editor-vue-element.js`와
-`dist-element/yona-help-markdown-element.js`를 각각 yona 저장소에 vendoring하고,
-템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`)를 넣으면 됩니다
-(각 위젯 구현의 세부 props/계약은 git 이력의 개별 README 참고). 두 커스텀 엘리먼트는
-서로 무관하므로 한쪽만 먼저 반영해도 문제 없습니다.
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **3개 전부**
+(`yona-markdown-editor-vue-element.js`, `yona-help-markdown-element.js`,
+`_plugin-vue_export-helper-*.js` - 두 엔트리가 상대 경로 `import`로 참조하는 공유 청크라
+같은 디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고, 템플릿에 해당 태그
+(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`)와 **`<script type="module">`**을
+넣으면 됩니다(각 위젯 구현의 세부 props/계약은 git 이력의 개별 README 참고). 두 커스텀
+엘리먼트는 서로 무관하므로 한쪽만 먼저 반영해도 문제 없습니다 - 공유 청크만 같이
+복사하면 됩니다.
 
 **주의**: 도움말 패널의 `markdownImages` 예시가 실제 yona 정적 에셋
 (`/assets/images/ico-like-small.png`)을 가리킵니다 - 이 저장소를 격리 실행(개발
@@ -92,11 +100,16 @@ npm run test
 - `editor-toolbar.mjs`: Vite 개발 서버로 App.vue를 띄운 뒤 9개 툴바 커맨드 + 미리보기
   placeholder 확인.
 - `editor-element.mjs`: `dist-element/yona-markdown-editor-vue-element.js`를 정적 HTML
-  (`editor-element.html`)에 로드해 shadowRoot attach/getValue()·setValue()/light-DOM
-  textarea 동기화 확인.
+  (`editor-element.html`, `<script type="module">`)에 로드해 shadowRoot
+  attach/getValue()·setValue()/light-DOM textarea 동기화 확인.
 - `help-panel.mjs`: 같은 개발 서버에서 도움말 패널 아코디언(초기 전부 닫힘/탭 클릭 시
   단일 오픈/재클릭 시 닫힘/다른 탭 클릭 시 자동 전환) 확인.
 - `help-element.mjs`: `dist-element/yona-help-markdown-element.js`를 정적 HTML
-  (`help-element.html`)에 로드해 같은 토글 동작 확인.
+  (`help-element.html`, `<script type="module">`)에 로드해 같은 토글 동작 확인.
 
-`element.mjs` 두 개는 `npm run build:elements`를 먼저 실행해야 합니다.
+`*-element.mjs` 두 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
+CORS로 막힙니다(실측 확인) - 그래서 두 스크립트 다 Vite 개발 서버로 `dist-element/`가
+포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/
+*-element.html`로 접속합니다(빌드/변환 없이 있는 그대로 서빙 - `npm run dev`와 달리
+HMR 클라이언트가 끼어들지 않음).

@@ -16,7 +16,7 @@ import {
   userToCompletion,
   emojiToCompletion,
   issueToCompletion,
-} from "../src/mention.js";
+} from "../src/editor/mention.js";
 
 // ---------------------------------------------------------------------------
 // matchMentionTrigger - 트리거 감지(requireLeadingSpace/allowSpaces:false/menuShowMinLength:0)

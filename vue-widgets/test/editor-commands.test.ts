@@ -18,7 +18,7 @@ import {
   toggleOrderedList,
   insertLink,
   insertImage,
-} from "../src/commands.js";
+} from "../src/editor/commands.js";
 
 function stateWithSelection(doc: string, from: number, to: number = from): EditorState {
   return EditorState.create({

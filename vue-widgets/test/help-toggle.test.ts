@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextActiveKey } from "../src/toggle.js";
+import { nextActiveKey } from "../src/help-markdown/toggle.js";
 
 test("아무 것도 안 열린 상태에서 탭을 클릭하면 그 탭이 열린다", () => {
   assert.equal(nextActiveKey(null, "markdownHeaders"), "markdownHeaders");
