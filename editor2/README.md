@@ -34,6 +34,26 @@ Custom Element 껍데기(연결/해제 라이프사이클, 폼 통합, 툴바 DO
 
 CM6 패키지 버전은 원본과 동일하게 pin되어 있습니다. 임의로 올리지 마세요.
 
+## yona에 실제로 꽂아 쓰려면: `defineCustomElement` 빌드
+
+`YonaMarkdownEditor.vue`는 Vue 앱(v-model) 안에서 쓰는 일반 컴포넌트로도, Vue 공식 API인
+`defineCustomElement`로 네이티브 커스텀 엘리먼트(`<yona-markdown-editor-vue>`)로도 컴파일할
+수 있습니다(같은 소스 파일을 `vite.element.config.ts`가 `customElement` 옵션으로 다르게
+컴파일 - 파일 중복 없음). 후자로 빌드하면 원본(`editor/`, `<yona-markdown-editor>`)과 완전히
+동일한 방식으로 - Vue 앱 부트스트랩이나 템플릿 구조 변경 없이 - 기존 Thymeleaf 템플릿에 태그
+하나로 그대로 꽂을 수 있습니다.
+
+```
+npm run build:element
+```
+
+`dist-element/yona-markdown-editor-vue-element.js` 하나가 나옵니다(Vue 런타임 포함 - 소비
+측이 Vue를 전혀 모르는 페이지에 꽂히므로 자체 완결). props(`name`/`editor-mode`/
+`model-value`/`render-url`/`mention-url`, 케밥케이스 HTML 속성 → 캐멀케이스 prop 자동 매핑)는
+그대로 속성으로 전달하고, `defineExpose({ getValue, setValue })`는 Vue 3.4+부터 커스텀
+엘리먼트 인스턴스에 그대로 노출되므로 `el.getValue()`/`el.setValue(v)`로 원본과 동일한 명령형
+접근이 가능합니다.
+
 ## 요구 사항
 
 - Node.js `>= 18`
@@ -68,7 +88,11 @@ esbuild로 트랜스파일한 뒤 `node --test`로 실행합니다.
 
 ## 스모크 테스트
 
-`smoke-test/`는 Vite 개발 서버를 띄운 뒤 Playwright로 9개 툴바 커맨드 + 미리보기 placeholder를
-확인합니다(원본 `editor/smoke-test/toolbar.mjs`와 동일한 시나리오, `<yona-markdown-editor>`
-커스텀 엘리먼트의 `.value` 대신 `App.vue`가 테스트 편의상 `window.__yonaEditor`에 노출한
-`getValue()`/`setValue()`를 사용).
+`smoke-test/`는 두 가지를 검증합니다:
+- `toolbar.mjs`: Vite 개발 서버를 띄운 뒤 Playwright로 9개 툴바 커맨드 + 미리보기 placeholder를
+  확인합니다(원본 `editor/smoke-test/toolbar.mjs`와 동일한 시나리오, `<yona-markdown-editor>`
+  커스텀 엘리먼트의 `.value` 대신 `App.vue`가 테스트 편의상 `window.__yonaEditor`에 노출한
+  `getValue()`/`setValue()`를 사용).
+- `element.mjs`: `npm run build:element`로 만든 `dist-element/` 번들을 정적 HTML
+  (`element.html`)에 `<script src>`로 그대로 로드해 shadowRoot attach/getValue()·setValue()/
+  light-DOM textarea 동기화를 확인합니다 - `npm run build:element`를 먼저 실행해야 합니다.
