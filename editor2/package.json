@@ -1,0 +1,33 @@
+{
+  "name": "@yona-projects/markdown-editor-vue",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CodeMirror 6 기반 마크다운 에디터 Vue 3(Composition API + TypeScript) SFC. components/editor의 네이티브 Web Component 버전을 Vue 컴포넌트로 다시 작성한 것.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "node build-test.mjs && node --test dist-test/*.test.mjs"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/commands": "6.11.0",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.12.4",
+    "@codemirror/state": "6.7.4",
+    "@codemirror/view": "6.43.11",
+    "vue": "3.5.42"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@vitejs/plugin-vue": "6.0.9",
+    "esbuild": "0.28.2",
+    "typescript": "^5.9.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.3.11"
+  }
+}
