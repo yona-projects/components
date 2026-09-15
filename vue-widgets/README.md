@@ -47,24 +47,50 @@ smoke-test/
   필요하다는 것뿐(최신 브라우저는 전부 지원) - 다만 **`file://`로 직접 열면 안 된다**(아래
   스모크 테스트 절 참고, module script의 상대 임포트가 file:// 오리진에서 CORS로 막힌다).
 
-## 중요: Shadow DOM 커스텀 엘리먼트와 <form> 참여(마크다운 에디터)
+## 중요: Shadow DOM 커스텀 엘리먼트와 <form>/첨부파일 위젯 연동(마크다운 에디터)
 
 옆에 나란히 놓고 비교하는 검증만으로는 안 드러나고, **실제 `<form>` 안에 넣고
-`FormData`를 찍어봐야만 드러나는 함정**을 하나 발견했다: `defineCustomElement`는
-컴포넌트 전체(내부 `<textarea>` 포함)를 Shadow DOM 안에 마운트한다. Shadow DOM 안의
-폼 필드는 표준 사양상 조상 `<form>`의 제출/`FormData`에 자동으로 포함되지 않는다 - 원본
-Custom Element(`editor/`)가 애초에 textarea를 **light DOM**에 일부러 뒀던 이유가
-바로 이것이다. Vue의 `defineCustomElement`는 아직 이 문제(form-associated custom
-element)를 위한 공식 지원이 없다(vuejs/core#12129, 2026-09 기준 미병합).
+`FormData`를 찍어보거나 첨부파일 위젯과 실제로 연동해봐야만 드러나는 함정**을 두 개
+발견했다: `defineCustomElement`는 컴포넌트 전체(내부 `<textarea>` 포함)를 Shadow DOM
+안에 마운트한다.
+1. Shadow DOM 안의 폼 필드는 표준 사양상 조상 `<form>`의 제출/`FormData`에 자동으로
+   포함되지 않는다.
+2. `yona.Attachments.js`/`yona.CommentAttachmentsUpdate.js`는 (a) 첨부파일 카드 클릭 시
+   raw `textarea.value`를 직접 계산하기 위해 `document.querySelector`로 실제
+   `<textarea>`를 찾고, (b) 그 결과를 에디터에 반영하기 위해
+   `welTextarea.closest("...").value = ...`처럼 `.value` 접근자 프로퍼티에 직접
+   대입한다 - Shadow DOM 안의 Vue 인스턴스는 찾을 수도 다룰 수도 없다.
 
-`src/editor/element.ts`에서 표준 웹 컴포넌트 API(`ElementInternals`)로 직접 해결했다 -
-`defineCustomElement()`가 반환한 클래스를 상속해 `static formAssociated = true`를
-얹고, `attachInternals()`로 얻은 `ElementInternals`에 문서가 바뀔 때마다
-`setFormValue()`를 호출한다(`YonaMarkdownEditor.vue`가 `composed: true`로 내보내는
-`input` 이벤트를 호스트에서 받아 트리거). 이러면 이 커스텀 엘리먼트 자신이 `name` 속성
-그대로(`<input name="body">`와 동일하게) 조상 폼의 제출값에 포함된다. 회귀 방지용
-스모크 테스트: `smoke-test/editor-form-participation.mjs`(초기값/`setValue()`/실제
-타이핑 세 경로 전부 확인).
+원본 Custom Element(`editor/`)가 애초에 textarea를 **light DOM**에 일부러 뒀던 이유가
+바로 이 두 가지다. `src/editor/element.ts`에서 원본과 동일한 구조로 해결했다 -
+`super.connectedCallback()`(Vue 앱을 shadow root에 동기적으로 마운트)이 끝난 직후
+wrapper 클래스가 스스로 실제 `<textarea>`를 만들어 host의 **light DOM 자식**으로
+붙인다(원본과 동일한 속성 계약: `name`/`id`(`editor-` 접두어)/`data-editor-mode`/
+`markdown="true"`). 내부 CM6 문서가 바뀔 때마다(`YonaMarkdownEditor.vue`가
+`composed: true`로 shadow 경계를 넘겨 내보내는 `input` 이벤트) 이 light textarea도
+동기화한다. 반대 방향(외부 코드가 이 light textarea를 직접 조작한 뒤 `.value = ...`로
+되돌려 반영)을 위해 `value` getter/setter도 클래스에 직접 얹었다(Vue의
+`defineExpose(getValue/setValue)`는 메서드일 뿐 원본이 제공하던 `.value` 접근자
+프로퍼티 자체는 아니다).
+
+이 light DOM textarea 하나가 실제 `<form>` 자손 필드가 되므로 위 1)도 자연스럽게
+해결된다 - 처음엔 `ElementInternals`(form-associated custom element)로 1)만 따로
+해결했었지만, 그러면 2)는 여전히 안 풀리고 light DOM textarea를 어차피 추가해야 한다면
+`ElementInternals`는 불필요해질 뿐 아니라 둘을 같이 쓰면 같은 `name`으로 `FormData`에
+값이 중복으로 실리는 부작용이 있어 걷어냈다.
+
+**주의(실제로 겪은 함정)**: light textarea가 발행하는 `input` 이벤트는 light DOM을 타고
+host까지도 버블링된다(light textarea가 host의 실제 자식이므로) - 그 이벤트를 다시
+"내부 변경"으로 착각해 반응하면 동기화 함수가 또 이벤트를 내보내는 무한 재귀에 빠진다
+(실측: `RangeError: Maximum call stack size exceeded`). shadow 안에서 온 composed
+이벤트는 host로 리타겟되어 `event.target === (host 자신)`이 되지만, light textarea
+자신이 낸 이벤트는 `event.target`이 그 textarea 그대로이므로 이걸로 구분해 후자는
+무시해야 한다.
+
+회귀 방지용 스모크 테스트: `smoke-test/editor-form-participation.mjs`(초기값/
+`setValue()`/실제 타이핑 세 경로 전부 `FormData`에 반영되는지), `smoke-test/
+editor-attachment-sync.mjs`(첨부파일 위젯의 실제 사용 패턴 - `document.querySelector`로
+찾기 → raw 조작 → `.value =`로 되돌려 반영 - 을 그대로 재현, P3-50류 회귀 없음까지 확인).
 
 ## toast 위젯
 
@@ -152,7 +178,11 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
   attach/getValue()·setValue()/light-DOM textarea 동기화 확인.
 - `editor-form-participation.mjs`: 실제 `<form>` 안에 넣고 `FormData`로 초기값/
   `setValue()`/실제 타이핑 세 경로 전부 제출값에 실리는지 확인(위 "Shadow DOM 커스텀
-  엘리먼트와 <form> 참여" 절 회귀 방지).
+  엘리먼트와 <form>/첨부파일 위젯 연동" 절 회귀 방지).
+- `editor-attachment-sync.mjs`: 첨부파일 위젯의 실제 사용 패턴(`document.querySelector`로
+  light DOM textarea 찾기 → raw 조작 → `.value =`로 되돌려 반영)을 그대로 재현해
+  `getValue()`에 반영되는지, P3-50류 회귀(나중에 CM6가 스스로 되돌리지 않는지)가 없는지
+  확인.
 - `help-panel.mjs`: 같은 개발 서버에서 도움말 패널 아코디언(초기 전부 닫힘/탭 클릭 시
   단일 오픈/재클릭 시 닫힘/다른 탭 클릭 시 자동 전환) 확인.
 - `help-element.mjs`: `dist-element/yona-help-markdown-element.js`를 정적 HTML
