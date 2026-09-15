@@ -30,18 +30,21 @@ src/
                     <Teleport>로 diff 테이블의 필요한 위치에 실제 라이트 DOM으로
                     옮겨 그리고, <yona-markdown-editor-vue>/<yona-attachments>를
                     자식으로 조합한다)
+  pagination/     - 페이지네이션(pagination.ts 순수 함수 + YonaPagination.vue,
+                    element.ts - 매번 새로 그리는 stateless 위젯, Toast와 같은 계열)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
                     마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
-                    어태치먼트/review-form은 시각 템플릿이 없거나 정적 마크업으로
-                    데모하기 애매해서 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
+                    어태치먼트/review-form/pagination은 시각 템플릿이 없거나 정적
+                    마크업으로 데모하기 애매해서 이 데모에는 포함하지 않았다
+                    (스모크 테스트로만 검증)
 test/
-  editor-*.test.ts, help-*.test.ts, toast-*.test.ts  - 위젯별 순수 함수 단위 테스트
-  (파일명 접두어로 구분)
+  editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts  - 위젯별
+  순수 함수 단위 테스트(파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
   dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
-  review-form-element.mjs
+  review-form-element.mjs, pagination-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -432,13 +435,71 @@ offset()/configure()` 공개 계약만 그대로 유지한다. 첨부파일 업�
 `show`/`hide`/`isVisible`/`height`/`offset`으로 위임하고, 그렇지 않으면 원본
 vanilla 구현이 처리한다.
 
+## pagination 위젯
+
+`yona.Pagination.js`(`Pagination.update(elTarget, totalPages, options)`)를
+다시 썼다. 게시글/이슈/PR/검색결과 등 12개 파일·18개 호출부에서 쓰이는,
+이 세션에서 검토한 후보 중 실사용 빈도가 가장 높은 위젯이었다. 원본이
+매 `update()` 호출마다 `target.innerHTML = ''`로 지우고 통째로 다시 그리던
+stateless 구조라(toast와 같은 계열) `<Teleport>`도 라이트 DOM 탈출구도
+필요 없었다 - Vue가 내부 reactive 상태로 선언적으로 다시 그리는 것으로
+그대로 대응된다.
+
+**순수 로직부터 TDD로 시작**: URL 파싱/페이지 번호 계산/입력값 보정을
+`pagination.ts`로 뽑아 컴포넌트보다 먼저 테스트(`test/pagination.test.ts`,
+18개)를 작성했다 - 원본의 미묘한 특성까지 그대로 검증한다: `rxDigit`
+(`/^.[0-9]*$/`)은 주석("positive만 찾는다")과 달리 실제로는 "첫 글자는
+아무거나 + 나머지는 전부 숫자"만 검사해 `"-5"`도 통과하고, `isNumeric`은
+16진수/음수 문자열도 숫자로 판정한다(jQuery `$.isNumeric()`과 동일한
+트릭) - 테스트 작성 중 처음 짠 검증 케이스(`"not-a-number"`가 에러를
+던질 것)가 실제로는 틀렸다는 것도 이 과정에서 발견했다(rxDigit 자체가
+막아 URL에서 다시 읽어오므로 에러 경로에 도달하지 않음 - `"x5"`처럼
+rxDigit은 통과하지만 isNumeric은 실패하는 값이라야 실제로 에러가 난다).
+
+**원본과 의도적으로 다른 점 두 가지(관찰 가능한 페이지 이동 동작은 동일,
+순수 UX 정확성 개선)**:
+1. 입력창 min/max 클램프를 원본은 `keydown`에서 처리해 실제로는 "한 타
+   늦게"(막 입력된 글자가 반영되기 전 값을 검사) 동작했다 - `input`
+   이벤트로 옮겨 실제 입력된 값을 즉시 보정한다.
+2. 클릭 시 전체 선택(원본은 document 전역 델리게이트가
+   `input[name="pageNum"]`을 하드코딩해 `paramNameForPage`를
+   커스터마이즈한 4개 화면(`site/postList.html`의 `"page"` 등)에서는
+   실행 경로 자체를 타지 못했다) - 인스턴스 자신의 클릭 핸들러로 처리해
+   이름과 무관하게 항상 실행되게 했다. 단, 실측 확인 결과 `type="number"`
+   입력창은 최신 브라우저에서 `.select()`/`selectionStart`가 전부
+   무동작(null)이라(원본도 동일한 브라우저 플랫폼 제약을 겪는다) 시각적
+   차이는 없고 "핸들러가 항상 걸린다"는 구조적 정확성만 개선됐다.
+
+**실측 중 발견한 사소한 버그**: 선언되지 않은 host 속성(어댑터가 원본
+`target`의 `id`를 그대로 복사해 넘기는 것 포함)을 Vue가 기본적으로
+템플릿 루트까지 흘려보내는(attrs fallthrough) 바람에, host의
+`id="pagination"`이 shadow DOM 내부 루트 div에도 그대로 복제됐다(동작에는
+영향 없음 - shadow DOM은 별도 ID 스코프라 `document.getElementById`는
+못 찾지만, shadow 관통 셀렉터를 쓰는 도구에는 불필요한 혼동을 준다).
+`defineOptions({ inheritAttrs: false })`로 해결.
+
+**실대치 검증**: 실제 프로젝트에 게시글 20개를 REST API로 만들어(페이지
+크기 15 고정이라 2페이지 확보) 실제 게시글 목록(`{owner}/{project}/posts`)
+에서 확인했다 - 1페이지에서 prev가 실제로 비활성(off) 마크업인지, 실제
+"다음 페이지" 링크 클릭으로 실제 `pageNum=2` URL로 네비게이션되고 2페이지
+(마지막)에서 next가 비활성되는지, 입력창에 값을 넣고 실제 Enter로 실제
+1페이지로 복귀하는지까지 전부 실서버 화면에서 확인했다.
+
+**하위 호환**: `yona.Pagination.js`도 하이브리드 어댑터로 다시 썼다 -
+대상이 이미 `<yona-pagination>`이면 그대로, 아니면(그리고 커스텀
+엘리먼트가 로드돼 있으면) idempotent하게 감싸서(Typeahead와 동일한
+"기존 엘리먼트를 그 자리에서 감싼다" 패턴) `update()`로 위임하고,
+그렇지 않으면 원본 vanilla 구현이 처리한다.
+
 ## 진짜로 여기서 마감한 후보들
 
-아홉 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
-어태치먼트/review-form)을 거치며 배운 것: "위젯 경계가 없다"는 판단은 거의
-항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments/review-form
-다섯 다 처음엔 이 목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다.
-아래는 실제로 조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드)
+열 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트/review-form/pagination)을 거치며 배운 것: "위젯 경계가 없다"는
+판단은 거의 항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments/
+review-form 다섯 다 처음엔 이 목록에 있었지만 전부 실제로 구현·실대치
+검증까지 마쳤다(pagination은 처음부터 위젯 경계가 명확해 이 목록에 있던
+적이 없다). 아래는 실제로 조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는
+아예 죽은 코드)
 자체 템플릿이 없는(Calendar/TomSelect) 경우만 남았다.
 
 - **`yona.ui.Tabs.js`**: 유일한 동작인 `_restoreTab()`이 legacy 버그(`"toggle" ==
@@ -481,28 +542,30 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 아홉 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+npm run build:elements  # 열 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
                          # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
-                         # <yona-typeahead>/<yona-attachments>/<yona-review-form>
-                         # 네이티브 커스텀 엘리먼트로 한 번에(dist-element/, es 모듈
-                         # 포맷 - 엔트리 9개 + 위젯들이 공유하는 청크 - 청크 파일명은
-                         # 빌드마다 바뀔 수 있다)
+                         # <yona-typeahead>/<yona-attachments>/<yona-review-form>/
+                         # <yona-pagination> 네이티브 커스텀 엘리먼트로 한 번에
+                         # (dist-element/, es 모듈 포맷 - 엔트리 10개 + 위젯들이
+                         # 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 9개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 10개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
 `yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`/
-`yona-review-form-element.js` + 공유 청크 - 엔트리들이 상대 경로 `import`로
-참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고,
-템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
+`yona-review-form-element.js`/`yona-pagination-element.js` + 공유 청크 - 엔트리들이
+상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona
+저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
 `<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/
-`<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>` - 단,
-`<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js`
-어댑터가 생성한다)와 **`<script type="module">`**을 넣으면 됩니다(각 위젯
+`<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>`/`<yona-pagination>`
+- 단, `<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js`
+어댑터가, `<yona-pagination>`도 정적 템플릿에 쓰지 않고 `yona.Pagination.js`
+어댑터가 기존 `<div id="pagination">`을 그 자리에서 감싼다)와
+**`<script type="module">`**을 넣으면 됩니다(각 위젯
 구현의 세부 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고).
 커스텀 엘리먼트들은 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유
 청크만 같이 복사하면 됩니다.
@@ -518,10 +581,14 @@ vendoring됐을 때만 정상 표시됩니다.
 npm run test
 ```
 
-네 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 = 53개 -
-스위치는 라이트 DOM 체크박스 조작이 핵심이라 순수 함수로 뽑을 로직이 없어 전부
-스모크 테스트로만 검증)를
-esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
+다섯 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 +
+pagination 20개 = 73개 - 스위치/드롭다운/다이얼로그/타입어헤드/어태치먼트/
+review-form은 라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심이라 순수
+함수로 뽑을 로직이 마땅치 않아 전부 스모크 테스트로만 검증)를 esbuild로
+트랜스파일한 뒤 `node --test`로 한 번에 실행합니다. pagination은 이 다섯
+중 유일하게 컴포넌트보다 순수 함수(`pagination.ts`) 테스트를 먼저 작성한
+뒤 구현한 위젯이다(TDD) - 테스트를 먼저 쓰는 과정에서 원본 정규식의 실제
+동작(주석과 다름)을 미리 검증 케이스로 못박아 두게 됐다.
 
 ## 스모크 테스트
 
@@ -590,8 +657,18 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
   교체되는지(초안 미유지 확인), (g) `hide()` 시 새로 만든 임시 `<tr>`만
   제거되고 기존 스레드 wrap은 유지되는지, (h) `toggle()`/닫기 버튼 클릭까지
   공개 API 전체 확인.
+- `pagination-element.mjs`: `dist-element/yona-pagination-element.js`를 정적
+  HTML(`pagination-element.html`, `<script type="module">`)에 로드해 (a)
+  `update(totalPages, options)` 렌더링(입력값/파라미터명/총 페이지 수 표시),
+  (b) current가 firstPage/totalPages와 같을 때 prev/next가 각각 자동으로
+  off 마크업이 되는지, (c) `paramNameForPage` 커스텀이 input name에 반영되고
+  클릭 핸들러도 이름과 무관하게 실행되는지, (d) 입력값이 min/max를 벗어나면
+  즉시 보정되는지, (e) `submit` 콜백 모드에서 prev/next 클릭·입력 시 실제
+  네비게이션 없이 콜백만 호출되는지, (f) 동기 모드에서 실제로 next 링크
+  클릭/입력 후 Enter로 실제 브라우저 URL이 `pageNum` 파라미터와 함께
+  네비게이션되는지(모킹 없이 real navigation) 확인.
 
-`*-element.mjs` 아홉 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 열 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/
