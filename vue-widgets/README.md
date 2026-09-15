@@ -17,13 +17,18 @@ src/
   help-markdown/  - 마크다운 도움말 패널(toggle.ts, examples.ts, MarkdownHelp.vue, element.ts)
   toast/          - 토스트 알림(format.ts, Toast.vue, element.ts)
   switch/         - 알림 on/off 스위치(YonaSwitch.vue, element.ts)
-  App.vue         - 네 위젯을 한 페이지에 나란히 마운트하는 개발/데모 하네스
+  dropdown/       - 커스텀 드롭다운(YonaDropdown.vue, element.ts - 시각 템플릿 없이
+                    <slot>로 라이트 DOM을 투과하는 얇은 행동 레이어)
+  App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
+                    마운트하는 개발/데모 하네스 - 드롭다운은 시각 템플릿이 없고
+                    부트스트랩 CSS가 필요해 이 데모에는 포함하지 않았다(스모크
+                    테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts  - 위젯별 순수 함수 단위 테스트
   (파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
-  toast.mjs, toast-element.mjs, switch-element.mjs
+  toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -160,6 +165,82 @@ Shadow DOM 안에서 전부 완결되는 레이아웃이라 이 문제를 겪지
 "호스트 자신의 표시 방식"과 "라이트 DOM 콘텐츠 스타일링"이 실제로 필요해진 위젯이
 스위치였다.
 
+## dropdown 위젯
+
+`yona.ui.Dropdown.js`(Bootstrap dropdown 플러그인에 의존하지 않는 순수 커스텀
+구현)를 다시 썼다. 실사용처는 이슈 일괄수정 패널(state/assignee/milestone/
+label 5개 드롭다운, `issue/list.html`/`issue/partial_massupdate.html`), 프로젝트/
+조직 멤버 권한 변경(`project/members.html`/`organization/members.html`), PR/SVN
+diff 브랜치 선택(`pullrequest/view.html`/`code/svnDiff.html`) 등 여러 화면에 걸쳐
+있다.
+
+**다른 위젯들과 근본적으로 다른 설계**: 이 위젯은 전체를 Shadow DOM에 그리지
+않는다 - 실제로 조사해보니 그러면 안 된다:
+1. 드롭다운 열고/닫기(`.open` 클래스 토글)는 이 파일이 아니라 `yona.Common.js`의
+   전역 `[data-toggle="dropdown"]` document 클릭 델리게이트가 담당한다. 그
+   델리게이트는 `event.target.closest('[data-toggle="dropdown"]')`으로 버튼을
+   찾는데, 버튼이 Shadow DOM 안에 있으면 클릭 이벤트가 host로 리타겟되어 절대
+   못 찾는다.
+2. `<li>` 항목 내용이 담당자 아바타/역할/브랜치명 등 호출부마다 다른 서버 렌더링
+   마크업이라, Vue가 선언적으로 다시 그릴 고정 템플릿이 없다.
+
+그래서 호스트 자신이 원본 `.btn-group[data-name]` 컨테이너를 그대로 대신하고
+(클래스/`data-name` 속성 유지), 버튼+목록 전체를 `<slot>`으로 라이트 DOM에
+그대로 투과한다. Vue는 목록 클릭 시 라벨 텍스트/`active` 클래스/hidden input을
+갱신하고 `onChange` 콜백을 호출하는 얇은 행동 레이어만 담당한다. 커스텀
+엘리먼트 host 자신에 접근하려고 Vue 3.5+의 `useHost()`(defineCustomElement
+전용 API)를 썼다 - 스위치의 `<slot ref>` + `assignedElements()`보다 더 직접적인
+방법이라 별도 element.ts wrapper도 필요 없었다.
+
+**실대치 검증**: `issue/list.html`의 state 드롭다운을 실제로 `<yona-dropdown>`로
+교체해 이슈 일괄수정 패널에서 검증했다 - 체크박스 선택 시 버튼이 실제로
+활성화되는지(`#mass-update-form button` 셀렉터가 라이트 DOM 버튼을 여전히
+찾는지), 실제 클릭으로 전역 델리게이트가 `.open` 클래스를 붙이는지(핵심 우려
+지점 - 정상 동작 확인), "닫힘" 클릭 시 실제 폼 제출 → 실제 이슈 상태 변경(닫힌
+이슈 목록으로 실제 이동)까지 전부 실제 서버 왕복으로 확인했다.
+
+**하위 호환**: `yona.ui.Dropdown.js` 자체를 하이브리드 어댑터로 다시 썼다 -
+컨테이너가 `<yona-dropdown>`(태그명으로 판별)면 그 위에 노출된
+`getValue`/`onChange`/`selectByValue`/`selectItem`으로 위임하고, 아직
+마이그레이션되지 않은 나머지 화면(평범한 `div.btn-group`)은 원본 vanilla
+구현이 그대로 처리한다 - 두 경로 다 동일한 공개 계약을 반환해 호출부
+(`yona.issue.MassUpdate.js`/`yona.issue.Write.js`/`layout.html`의 자동 초기화
+루프)는 코드를 전혀 바꿀 필요가 없다.
+
+## 여기서 마감한 나머지 후보들
+
+이 다섯 위젯(에디터/도움말/토스트/스위치/드롭다운) 이후 `yona.Attachments.js`
++`yona.Files.js`/`yona.CodeCommentBox.js`도 실제 마크업·연동 구조까지 조사했다.
+전부 "Vue SFC로 깔끔하게 바꿀 수 있는 자기완결적 위젯"은 아니었다 - 위젯 후보를
+평가할 때 참고할 반례로 이유를 남긴다.
+
+- **`yona.ui.Tabs.js`**: 유일한 동작인 `_restoreTab()`이 legacy 버그(`"toggle" ==
+  "tab"`가 항상 false로 평가됨, v1.6부터 그대로)로 처음부터 완전한 no-op이다 -
+  포팅할 실제 로직이 없다.
+- **`yona.CodeCommentBox.js` + `common/reviewForm.html`**: 위젯이 아니라
+  `yona.code.Diff.js`(861줄, diff 뷰)에 결합된 DOM 재배치 오케스트레이션이다 - 페이지당
+  하나뿐인 폼을 diff 테이블의 여러 위치로 옮겨 재사용하고, 벤더 에디터의 버그를
+  `cloneNode` 트릭으로 우회한다. "템플릿을 선언적으로 다시 그리는" 종류의 문제가
+  아니다.
+- **`yona.Attachments.js`(750줄) + `yona.Files.js`(918줄)**: 이슈/게시글/코드리뷰/
+  마일스톤/아바타 업로드 등 앱 전역에서 재사용되는 핵심 서비스다. 첨부파일 카드
+  목록도 정적 템플릿이 아니라 `$yona.tmpl()`로 매 순간 동적 생성되고, 컨테이너를
+  Shadow DOM으로 감싸면 이 서비스들이 쓰는 `elContainer.querySelector(...)`가 전부
+  깨진다(에디터/스위치에서 이미 겪은 문제의 훨씬 큰 버전).
+- **`yona.ui.Calendar.js`/`yona.ui.TomSelect.js`**: 각각 Flatpickr/Tom Select라는
+  서드파티 라이브러리의 얇은 설정 래퍼일 뿐, Vue가 선언적으로 다시 그릴 자체
+  템플릿이 없다(실제 위젯 UI는 라이브러리가 `document.body`에 직접 그린다).
+- **`yona.ui.Mergely.js`**: 파일 자체 헤더 주석에 명시된 완전한 죽은 코드다 -
+  인스턴스화 호출 0건, 대상 마크업(`#compare`/`#mergely`) 0건, 심지어 의존 라이브러리
+  (`$.fn.mergely`)조차 저장소에 존재하지 않는다.
+
+`yona.ui.Dialog.js`/`yona.ui.Dropdown.js`/`yona.ui.Typeahead.js`는 처음엔 이 목록에
+넣었었다(전역 버튼 CSS 클래스/전역 dropdown 델리게이트/정적 템플릿 부재 문제) - 하지만
+셋 다 스위치/에디터에서 이미 검증한 "열린 부분은 라이트 DOM에 남기고 Vue는 얇은 행동
+레이어만 맡는다"는 탈출구로 풀리는 문제였다. `yona.ui.Dropdown.js`는 위 "dropdown
+위젯" 절에서 실제로 구현·실대치 검증까지 마쳤다 - Dialog/Typeahead는 같은 탈출구가
+적용된다는 것만 확인했고 아직 구현하지 않았다(다음 후보).
+
 ## 요구 사항
 
 - Node.js `>= 18`
@@ -179,21 +260,21 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 네 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
-                         # <yona-toast>/<yona-switch> 네이티브 커스텀 엘리먼트로 한 번에
-                         # (dist-element/, es 모듈 포맷 - 엔트리 4개 + 위젯들이 공유하는
-                         # _plugin-vue_export-helper-*.js 청크)
+npm run build:elements  # 다섯 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+                         # <yona-toast>/<yona-switch>/<yona-dropdown> 네이티브 커스텀
+                         # 엘리먼트로 한 번에(dist-element/, es 모듈 포맷 - 엔트리 5개 +
+                         # 위젯들이 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 4개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 5개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
-`yona-toast-element.js`/`yona-switch-element.js` + 공유 청크
-`_plugin-vue_export-helper-*.js` - 엔트리들이 상대 경로 `import`로 참조하므로 같은
-디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고, 템플릿에 해당 태그
-(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/`<yona-toast>`/`<yona-switch>`)와
+`yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js` + 공유
+청크 - 엔트리들이 상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야
+한다)를 yona 저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/
+`<yona-help-markdown>`/`<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`)와
 **`<script type="module">`**을 넣으면 됩니다(각 위젯 구현의 세부
 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고). 커스텀 엘리먼트들은
 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유 청크만 같이 복사하면 됩니다.
@@ -242,8 +323,14 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
   document 레벨에서 여전히 검색 가능한지(라이트 DOM 유지 확인), (b) `.switch-left`/
   `.switch-right` 클릭과 스페이스바로 실제 토글되는지, (c) 그때마다 라이트 DOM
   체크박스에 진짜 `change` 이벤트가 발생하는지 확인.
+- `dropdown-element.mjs`: `dist-element/yona-dropdown-element.js`를 정적 HTML
+  (`dropdown-element.html`, `<script type="module">`)에 로드해 (a) 토글 버튼이
+  document 레벨에서 여전히 검색 가능한지, (b) `data-selected=true` 기본값이 마운트
+  시 자동 선택되는지, (c) 실제 항목 클릭으로 라벨/active 클래스/hidden input이
+  갱신되는지, (d) `getValue`/`onChange`/`selectByValue` defineExpose API가 정상
+  동작하는지 확인.
 
-`*-element.mjs` 네 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 다섯 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/
