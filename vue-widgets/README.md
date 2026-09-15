@@ -38,11 +38,15 @@ src/
   scroll-elevator/ - "맨 위로/맨 아래로 스크롤" 버튼(YonaScrollElevator.vue, element.ts -
                     <Teleport to="body">로 서드파티 jquery.elevator.css를 그대로
                     상속받는다, 서버 렌더 대상 없이 항상 새 엘리먼트를 만들어 붙임)
+  page-slide/     - 2단 보기 모드의 슬라이드 iframe 패널(YonaPageSlide.vue,
+                    element.ts - CSS는 인라인 스타일로 직접 재현, host에는
+                    id를 주지 않는다(전역 #pageslide 규칙과 충돌 방지 - 어댑터가
+                    클로저 변수로 엘리먼트를 캐싱))
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
                     마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
-                    어태치먼트/review-form/pagination/login-dialog/scroll-elevator는
-                    시각 템플릿이 없거나 정적 마크업으로 데모하기 애매해서 이
-                    데모에는 포함하지 않았다(스모크 테스트로만 검증)
+                    어태치먼트/review-form/pagination/login-dialog/scroll-elevator/
+                    page-slide는 시각 템플릿이 없거나 정적 마크업으로 데모하기
+                    애매해서 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts  - 위젯별
   순수 함수 단위 테스트(파일명 접두어로 구분)
@@ -51,7 +55,7 @@ smoke-test/
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
   dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
   review-form-element.mjs, pagination-element.mjs, login-dialog-element.mjs,
-  scroll-elevator-element.mjs
+  scroll-elevator-element.mjs, page-slide-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -597,16 +601,68 @@ glass 스타일 버튼이 원본과 동일하게 렌더링됨).
 data-*로 넘기고 body에 추가한 뒤 `{destroy}`를 반환하며, 그렇지 않으면
 원본 vanilla 구현이 처리한다.
 
+## page-slide 위젯
+
+`yona.twoColumnMode.js`(service/)의 `_pageslide*` 함수군(jquery.pageslide.js를
+대체한 vanilla 구현)만 뽑아 다시 썼다 - 게시판/이슈 "2단 보기" 모드에서 제목을
+클릭하면 화면 오른쪽에서 슬라이드해 들어오는 iframe 패널이다.
+
+**범위 - 같은 파일의 나머지는 옮기지 않는다**: `yona.twoColumnMode.js`는 이
+패널 외에도 2단 보기 체크박스 상태 저장(localStorage), 제목 클릭 델리게이트
+부착, 클릭한 게시글 하이라이트, `history.pushState` 연동, NProgress 호출까지
+한 파일에 다 있다 - 이건 "2단 보기"라는 페이지 기능 자체의 오케스트레이션이지
+패널 위젯의 일부가 아니다(review-form에서 트리거 로직을 `yona.code.Diff.js`에
+그대로 남겨둔 것과 동일한 경계 판단). 이 컴포넌트는 패널 자체
+(`show`/`hide`/`isVisible`)만 담당하고, 나머지는 어댑터(페이지 쪽 vanilla
+코드)가 그대로 소유한다.
+
+**CSS를 이식하지 않고 인라인 스타일로 직접 재현**: 원본은 `#pageslide`라는
+id 선택자로 yona.css에 딱 한 번 정의된 스타일(position:fixed/width:50%/
+box-shadow/배경 로딩 gif)을 쓴다. 규칙이 딱 하나뿐이라 포팅보다 인라인
+`:style`로 값을 그대로 재현하는 편이 더 간단해 별도 `<style>` 블록이 없다.
+
+**실측 중 발견한 진짜 함정 - "하위 호환 id"가 오히려 버그였다**: 처음엔
+review-form/login-dialog처럼 원본 `document.getElementById("pageslide")`
+호환을 위해 Vue 컴포넌트의 host에도 그대로 `id="pageslide"`를 줬다 - 그런데
+yona.css의 전역 `#pageslide { display: none; ... }` 규칙이 id 선택자로
+**host 자체**에 그대로 적용돼(컴포넌트 내부에서 인라인 스타일을 아무리
+재현해도 host 자신이 그 id로 display:none이 되면 shadow 트리 전체가
+렌더링 자체가 안 된다) 기능은 다 동작하는데(`isVisible()` true, iframe src
+정상) 화면에는 전혀 안 보이는 채로 실측 중 재현됐다. `display: contents`로
+host를 덮어써도 Vue가 host의 style 속성 변경을 감지해 class/style을 안쪽
+엘리먼트와 병합해버리는(`inheritAttrs`와 별개로 항상 병합 대상) 2차 문제까지
+있었다 - 근본 해결은 컴포넌트를 고치는 게 아니라 **애초에 host에 그 id를
+주지 않는 것**이었다. 이 위젯은 `document.getElementById`가 다른 파일에서
+전혀 참조되지 않는(같은 파일 안 2곳뿐) 완전히 내부적인 상태라, 어댑터가
+DOM id 대신 클로저 변수(`_pageslideVueEl`)로 엘리먼트를 직접 캐싱하도록
+바꿔 충돌 자체를 없앴다.
+
+**실대치 검증**: 실제 프로젝트에 게시글 2개를 만들어 실제 `board/list.html`
+에서 확인했다 - 실제 "2단 보기" 체크박스를 켜고 실제 게시글 제목을 클릭하면
+실제 패널이 화면 우측 절반에 열리고 실제 게시글 URL로 iframe이 채워지는지,
+실제 브라우저 URL이 `history.pushState`로 바뀌는지, 같은 제목 재클릭으로
+실제 토글되어 닫히는지, 다른 제목 클릭으로 실제로 다시 열리며 iframe이
+갱신되는지까지 전부 실서버 화면에서 스크린샷으로 확인했다(패널이 열리면
+화면 우측 절반을 실제로 덮는 것도 원본과 동일하게 재현됨 - 재클릭 검증 시
+가려지지 않은 좌측 부분을 클릭해야 했던 것도 원본과 동일한 실제 레이아웃
+특성).
+
+**하위 호환**: `yona.twoColumnMode.js`도 하이브리드 어댑터로 다시 썼다 -
+`_getPageslideElement`/`_isPageslideVisible`/`_pageslideOpen`/`_pageslideClose`가
+커스텀 엘리먼트 존재 여부로 분기해 `show`/`hide`/`isVisible`로 위임하고,
+`.left-menu` 복원처럼 위젯이 모르는 페이지 고유 관심사는 어댑터 쪽에
+그대로 남겼다.
+
 ## 진짜로 여기서 마감한 후보들
 
-열두 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
-어태치먼트/review-form/pagination/login-dialog/scroll-elevator)을 거치며
-배운 것: "위젯 경계가 없다"는 판단은 거의 항상 검증 부족이었다 -
+열세 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트/review-form/pagination/login-dialog/scroll-elevator/page-slide)을
+거치며 배운 것: "위젯 경계가 없다"는 판단은 거의 항상 검증 부족이었다 -
 Dialog/Dropdown/Typeahead/Attachments/review-form 다섯 다 처음엔 이
 목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다(pagination/
-login-dialog/scroll-elevator는 처음부터 위젯 경계가 명확해 이 목록에
-있던 적이 없다). 아래는 그중 실제로 조사해도 위젯 경계 자체가 없거나
-(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이 없는(Calendar/TomSelect)
+login-dialog/scroll-elevator/page-slide는 처음부터 위젯 경계가 명확해 이
+목록에 있던 적이 없다). 아래는 그중 실제로 조사해도 위젯 경계 자체가
+없거나(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이 없는(Calendar/TomSelect)
 `yona.ui.*` 계열 경우만 남았다.
 
 **`common/`/`service/` 전체(77개 파일)를 대상으로 한 최신 전수조사**는
@@ -656,34 +712,36 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 열두 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+npm run build:elements  # 열세 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
                          # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
                          # <yona-typeahead>/<yona-attachments>/<yona-review-form>/
-                         # <yona-pagination>/<yona-login-dialog>/<yona-scroll-elevator>
-                         # 네이티브 커스텀 엘리먼트로 한 번에(dist-element/, es 모듈
-                         # 포맷 - 엔트리 12개 + 위젯들이 공유하는 청크 - 청크
-                         # 파일명은 빌드마다 바뀔 수 있다)
+                         # <yona-pagination>/<yona-login-dialog>/<yona-scroll-elevator>/
+                         # <yona-page-slide> 네이티브 커스텀 엘리먼트로 한 번에
+                         # (dist-element/, es 모듈 포맷 - 엔트리 13개 + 위젯들이
+                         # 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 12개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 13개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
 `yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`/
 `yona-review-form-element.js`/`yona-pagination-element.js`/
-`yona-login-dialog-element.js`/`yona-scroll-elevator-element.js` + 공유 청크 -
-엔트리들이 상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를
-yona 저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
+`yona-login-dialog-element.js`/`yona-scroll-elevator-element.js`/
+`yona-page-slide-element.js` + 공유 청크 - 엔트리들이 상대 경로 `import`로
+참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고,
+템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
 `<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/
 `<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>`/`<yona-pagination>`/
 `<yona-login-dialog>`/`<yona-scroll-elevator>` - 단, `<yona-typeahead>`는 정적
 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js` 어댑터가, `<yona-pagination>`도
 정적 템플릿에 쓰지 않고 `yona.Pagination.js` 어댑터가 기존
-`<div id="pagination">`을 그 자리에서 감싸며, `<yona-scroll-elevator>`도
-정적 템플릿에 쓰지 않고 `yona.ScrollElevator.js` 어댑터가 직접 만들어
-body에 붙인다)와 **`<script type="module">`**을 넣으면 됩니다(각 위젯
+`<div id="pagination">`을 그 자리에서 감싸며, `<yona-scroll-elevator>`/
+`<yona-page-slide>`도 정적 템플릿에 쓰지 않고 각각 `yona.ScrollElevator.js`/
+`yona.twoColumnMode.js` 어댑터가 직접 만들어 붙인다)와
+**`<script type="module">`**을 넣으면 됩니다(각 위젯
 구현의 세부 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고).
 커스텀 엘리먼트들은 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유
 청크만 같이 복사하면 됩니다.
@@ -805,8 +863,16 @@ review-form은 라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심�
   실제 페이지가 최상단/최하단까지 스크롤되는지(모킹 없이 real scroll), (e)
   `tooltips` 옵션에 따라 `title` 속성/내부 span 중 올바른 방식으로 표시되는지,
   (f) `destroy()` 호출 + host 제거로 실제로 완전히 사라지는지 확인.
+- `page-slide-element.mjs`: `dist-element/yona-page-slide-element.js`를 정적
+  HTML(`page-slide-element.html`, `<script type="module">`)에 로드해 (a)
+  `show(href, direction)` 호출 즉시 `isVisible()`이 true가 되지만 iframe은
+  아직 없고(300ms 지연 재현) 그 뒤 실제로 채워지는지, (b) `direction`에 따라
+  `left`/`right` 배치가 정확한지, (c) `hide()`로 실제로 사라지는지, (d) 지연
+  중 `hide()`하면 타이머가 취소돼 iframe이 끝내 안 채워지는지, (e) 이미 열린
+  상태에서 재호출하면 이전 iframe이 즉시 제거되고 새 iframe이 새 src로
+  채워지는지 확인.
 
-`*-element.mjs` 열두 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 열세 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/

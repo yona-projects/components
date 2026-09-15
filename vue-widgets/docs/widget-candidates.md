@@ -5,13 +5,14 @@
 재조사한 결과다. common/은 이 세션에서 두 번째 전수조사(첫 조사에서 놓친 Tooltip/Popover
 시스템을 새로 발견), service/는 이번이 첫 조사다.
 
-**이미 이식 완료(12개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
+**이미 이식 완료(13개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
 패널, 토스트(`yona.ui.Toast.js`), 스위치(`yona.ui.Switch.js`), 드롭다운(`yona.ui.Dropdown.js`),
 다이얼로그(`yona.ui.Dialog.js`), 타입어헤드(`yona.ui.Typeahead.js`), 첨부파일
 (`yona.Attachments.js`), review-form(`yona.CodeCommentBox.js`), pagination
 (`yona.Pagination.js`), **login-dialog(`yona.LoginDialog.js`, 2026-09-15 완료 - 아래
 1번이었던 항목)**, **scroll-elevator(`yona.ScrollElevator.js`, 2026-09-15 완료 - 아래
-2번이었던 항목)**.
+2번이었던 항목)**, **page-slide(`yona.twoColumnMode.js`의 `_pageslide*`, 2026-09-15
+완료 - 아래 3번이었던 항목)**.
 
 ## 진짜 위젯 후보 (권장 착수 순서)
 
@@ -32,15 +33,15 @@
 DOM을 생성) 어댑터가 새 엘리먼트를 만들어 붙이는 방식으로 대응했고, `<Teleport
 to="body">`로 서드파티 jquery.elevator.css(413줄)를 이식 없이 그대로 상속받았다.
 
-### 3. PageSlide 오버레이 패널 — `yona.twoColumnMode.js`의 `_pageslide*` 함수군(약 90줄) — 난이도 낮음-중간
+### ~~3. PageSlide 오버레이 패널~~ — 이식 완료(`../README.md`의 "page-slide 위젯" 절 참고)
 
-`#pageslide`를 프로그래밍적으로 생성해 `document.body`에 붙이고(Toast와 동일 패턴),
-iframe으로 URL을 로드하며 좌/우 슬라이드 인/아웃, 같은 항목 재클릭 시 토글-닫기,
-`history.pushState` 연동까지 갖춘 독립 위젯이다. 게시판/이슈 목록의 "2열 모드"(제목
-클릭 시 미리보기)에서 쓰인다. Shadow DOM 충돌 거의 없음(body-append 오버레이).
-
-주의: 같은 파일 안의 나머지 로직(체크박스 상태 저장, 하이라이트 등)은 순수 페이지
-글루라 `_pageslide*` 부분만 분리 이식해야 한다 - 파일 전체를 위젯으로 보면 안 된다.
+예상 범위(체크박스/하이라이트 등은 어댑터에 남기고 `_pageslide*`만 분리)는 맞았지만,
+실측에서 예상 못 한 함정을 하나 발견했다 - "하위 호환을 위해 host에 원본과 같은
+`id="pageslide"`를 그대로 준다"는 자연스러운 선택이 실제로는 yona.css의 전역
+`#pageslide { display: none; }` 규칙과 충돌해 화면에 전혀 안 보이는 버그를 냈다.
+해결은 컴포넌트가 아니라 어댑터 쪽 - host에 그 id를 아예 안 주고 클로저 변수로
+캐싱했다. "하위 호환 계약을 최대한 원본과 똑같이 유지하려는 선택"이 오히려 새
+버그의 원인이 될 수 있다는 사례로 남는다.
 
 ### 4. Tooltip/Popover 플로팅 위치 시스템 — `yona.Common.js`(신규 발견, 이전 조사에서 "기반
 유틸리티"로 뭉뚱그려졌던 부분) — 난이도 중간-높음, 그러나 사용 빈도 압도적
