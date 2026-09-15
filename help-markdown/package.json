@@ -1,0 +1,28 @@
+{
+  "name": "@yona-projects/help-markdown",
+  "version": "0.1.0",
+  "private": true,
+  "description": "yona help/markdown.html(마크다운 도움말 패널)을 Vue 3 Composition API + TypeScript SFC로 다시 작성한 파일럿 - 상태/외부 의존성이 전혀 없는 정적 아코디언 위젯이라 컴포넌트화 위험이 가장 낮은 후보로 골랐다.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "build:element": "vite build --config vite.element.config.ts",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "node build-test.mjs && node --test dist-test/*.test.mjs"
+  },
+  "dependencies": {
+    "vue": "3.5.42"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@vitejs/plugin-vue": "6.0.9",
+    "esbuild": "0.28.2",
+    "typescript": "^5.9.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.3.11"
+  }
+}
