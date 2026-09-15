@@ -64,13 +64,14 @@ src/
                     테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts,
-  popover.test.ts, label-editor-{color,request,messages,data}.test.ts  - 위젯별
-  순수 함수 단위 테스트(파일명 접두어로 구분)
+  popover.test.ts, label-editor-{color,request,messages,data}.test.ts,
+  attachments-markers.test.ts  - 위젯별 순수 함수 단위 테스트(파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
   dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
-  review-form-element.mjs, pagination-element.mjs, login-dialog-element.mjs,
+  attachments-comment-edit-element.mjs, review-form-element.mjs,
+  pagination-element.mjs, login-dialog-element.mjs,
   scroll-elevator-element.mjs, page-slide-element.mjs, popover-element.mjs,
   new-label-form-element.mjs, category-edit-dialog-element.mjs,
   label-edit-dialog-element.mjs, label-list-adapter.mjs
@@ -386,6 +387,42 @@ scoped 버그 회피 패턴 재사용) 메뉴를 순수 CSS(`top: 100%`)만으�
 **하위 호환**: `yona.Attachments.js`도 하이브리드 어댑터로 다시 썼다 -
 컨테이너가 `<yona-attachments>`(태그명으로 판별)면 `configure()`로 위임하고,
 그렇지 않으면 원본 vanilla 구현이 처리한다.
+
+**확장(2026-09-16) - `yona.CommentAttachmentsUpdate.js`(240줄) 흡수**: 댓글
+인라인 수정 폼(`common/commentUpdateForm.html`)이 쓰던 별도 마크업 계약
+(`.attached-file-marker`/`.file-upload__input`/`.temporaryUploadFiles`)을
+새 위젯 설계 없이 이 컴포넌트가 그대로 흡수하도록 확장했다.
+
+- **`temporaryUploadFiles` 히든 필드는 죽은 값이었다**: 댓글 수정 폼의 실제
+  PUT 제출(`issue/view.html`/`board/view.html`의 인라인 스크립트)은
+  `{contents, sendNotificationMail}`만 보내는 순수 JSON이다 - 백엔드
+  (`CommentServiceImpl`)가 저장된 마크다운 본문에서 `/files/(\d+)` 링크를
+  정규식으로 스캔해 첨부파일을 재연결한다(`attachUploadedFiles`). 그래서
+  히든 필드 CSV 추적 없이도 기존 `<yona-attachments>`의 링크 삽입
+  (`insertLinkToTextarea`)만으로 충분하다.
+- **백엔드 권한 검사 공백을 발견 - 우회 설계**: `AccessControl.isAllowedAttachment()`
+  에 `ISSUE_COMMENT`/`NONISSUE_COMMENT` 케이스가 없어(`else -> false`) 기존
+  `resourceType`/`resourceId` 기반 `GET /files` 비동기 조회는 이 두 컨테이너
+  타입에 대해 항상 403이 난다 - 백엔드 Kotlin 보안 코드 수정은 이 프로젝트
+  스코프 밖이라, 대신 서버가 이미 갖고 있는 첨부파일 목록
+  (`commentAttachmentsByCommentId` 모델 속성)을 `<yona-attachments>`의 라이트
+  DOM 자식으로 인라인 렌더링해두고(`.attached-file-marker[data-id][data-name]
+  [data-href][data-mime][data-size]`, 화면엔 안 보임 - `<slot>`이 없어 flat
+  tree에 편입 안 됨, 순수 데이터 홀더), `onMounted()` 시점에 한 번만 읽어
+  `files`를 직접 채우는 새 경로(`markers.ts`, TDD 4개 테스트)를 추가했다 -
+  네트워크 요청 자체가 없어 그 권한 공백을 우회한다.
+- **덤으로 발견한 기존 버그**: `loadExistingAttachments()`의 `listURL` 기본값이
+  `/attachments`였는데 실제 백엔드 엔드포인트는 `/files`(`AttachmentController.
+  getFileList`, GET + `containerType`/`containerId` 쿼리)다 - 이 기본값을 쓰는
+  소비자가 있었다면 항상 404(에러는 조용히 무시되므로 증상은 "첨부파일 목록이
+  안 뜸")였을 잠복 버그. `/files`로 수정.
+- **실대치 검증**: 이슈 댓글/게시글(board) 댓글 양쪽에서 실제 댓글을 작성하고
+  수정 폼을 열어 실제 파일 업로드(카드 클릭 시 실제 textarea에 마크다운 링크
+  삽입) → 실제 PUT 저장 → 페이지가 그 첨부파일 링크를 실제로 렌더링하는지 →
+  같은 댓글을 다시 열었을 때 방금 올린 파일이 **추가 네트워크 조회 없이**
+  마커만으로 기존 첨부파일로 뜨는지 → 실제 삭제(`POST /files/{id}` +
+  `_method=delete`)까지 전부 실서버에서 확인했다(버그 0건 - 설계대로 한 번에
+  통과).
 
 ## review-form 위젯
 
@@ -948,8 +985,9 @@ npm run test
 
 일곱 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 +
 pagination 20개 + popover 8개 + label-editor 24개(색상 10 + 요청 직렬화 2 +
-i18n 폴백 4 + `_coerceDataValue` 재현 8) = 105개 - 스위치/드롭다운/다이얼로그/
-타입어헤드/어태치먼트/review-form/login-dialog/scroll-elevator/page-slide는
+i18n 폴백 4 + `_coerceDataValue` 재현 8) + attachments 4개(마커 데이터 변환,
+`yona.CommentAttachmentsUpdate.js` 흡수 확장 대응) = 109개 - 스위치/드롭다운/
+다이얼로그/타입어헤드/review-form/login-dialog/scroll-elevator/page-slide는
 라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심이라 순수 함수로 뽑을 로직이
 마땅치 않아 전부 스모크 테스트로만 검증)를 esbuild로 트랜스파일한 뒤
 `node --test`로 한 번에 실행합니다. pagination/popover/label-editor는
@@ -1015,6 +1053,13 @@ request,messages,data}.ts`) 테스트를 먼저 작성한 뒤 구현한 위젯�
   삭제 요청이 발생하고 카드/링크/hidden input이 정리되는지, (e) **외부
   textarea에 직접 붙여넣기했을 때** 실제로 업로드가 트리거되는지(실대치에서
   발견한 리스너 위치 버그의 회귀 방지) 확인.
+- `attachments-comment-edit-element.mjs`: `dist-element/yona-attachments-element.js`를
+  정적 HTML(`attachments-comment-edit-element.html`, host의 라이트 DOM 자식으로
+  `.attached-file-marker` 두 개를 미리 심어둠 - `yona.CommentAttachmentsUpdate.js`
+  흡수 확장 대응)에 로드해 (a) 추가 네트워크 조회 없이 마커만으로 기존 첨부파일
+  카드가 실제로 표시되는지(이름/사람이 읽을 수 있는 크기 단위 변환/complete
+  상태 포함), (b) 마커 기반 카드 삭제 시 실제 DELETE 요청(`data-href` +
+  `_method=delete`)이 나가고 카드가 사라지는지 확인.
 - `review-form-element.mjs`: `dist-element/yona-review-form-element.js`를 정적
   HTML(`review-form-element.html`, `<script type="module">` + `data-*` 속성)에
   로드해 (a) 새 범위/라인 댓글용 임시 `<tr class="comment-form">`가 실제로

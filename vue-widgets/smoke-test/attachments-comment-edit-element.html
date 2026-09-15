@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title></head>
+<body>
+<!-- yona.CommentAttachmentsUpdate.js 흡수 시나리오 재현 - 댓글 수정 폼처럼 서버가
+     이미 첨부파일 목록을 마커 엘리먼트로 라이트 DOM에 렌더링해둔 상태에서 시작한다
+     (resourceType/resourceId 기반 비동기 조회 없이). -->
+<textarea id="editor-textarea"></textarea>
+<yona-attachments id="target">
+  <div class="attached-file-marker" data-id="10" data-name="existing.png" data-href="/files/10" data-mime="image/png" data-size="2048"></div>
+  <div class="attached-file-marker" data-id="11" data-name="doc.pdf" data-href="/files/11" data-mime="application/pdf" data-size="4096"></div>
+</yona-attachments>
+<script type="module">
+  import "../dist-element/yona-attachments-element.js";
+  customElements.whenDefined("yona-attachments").then(() => {
+    document.querySelector("yona-attachments").configure({
+      textarea: document.getElementById("editor-textarea"),
+    });
+  });
+</script>
+</body>
+</html>

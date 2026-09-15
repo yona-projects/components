@@ -25,6 +25,7 @@
 // 직접 쓴다, 이 컴포넌트와 무관), 문자열 네임스페이스 기반 pub-sub을 Vue 반응형으로
 // 옮길 실익이 없었다.
 import { computed, onMounted, onUnmounted, ref, useHost, useTemplateRef } from "vue";
+import { markersToFiles, type AttachmentMarker } from "./markers";
 
 interface AttachedFile {
   submitId: string;
@@ -58,7 +59,12 @@ const pasteHelpVisible = true;
 
 let externalTextarea: HTMLTextAreaElement | null = null;
 let uploadURL = "/files";
-let listURL = "/attachments";
+// 원본 AttachmentController에는 "/attachments" 엔드포인트 자체가 없다(GET /files가
+// containerType/containerId 쿼리로 목록을 반환한다) - 이 기본값을 그대로 쓰는
+// 소비자가 있으면 loadExistingAttachments()의 fetch가 항상 404 나서(에러는
+// 조용히 무시되므로) 기존 첨부파일 목록이 안 뜨는 잠복 버그였다(2026-09-16
+// label-editor 이후 재검증 세션에서 백엔드 컨트롤러 대조로 발견).
+let listURL = "/files";
 const temporaryFileIds: string[] = [];
 
 function getCsrfHeaders(): Record<string, string> {
@@ -366,6 +372,25 @@ function humanFileSize(bytes: number): string {
   return `${size.toFixed(1)}${units[unitIndex]}`;
 }
 
+// yona.CommentAttachmentsUpdate.js 흡수(댓글 수정 폼) 대응 - 서버가 이미
+// commentAttachmentsByCommentId 모델 속성으로 첨부파일 목록을 갖고 있는데, 백엔드
+// AccessControl.isAllowedAttachment()가 ISSUE_COMMENT/NONISSUE_COMMENT 컨테이너
+// 타입을 지원하지 않아(아래 loadExistingAttachments가 쓰는 GET /files 경로가
+// 항상 403) resourceType/resourceId 기반 조회를 쓸 수 없다(백엔드 보안 코드
+// 수정은 이 세션 스코프 밖) - 그래서 서버가 이미 렌더링해둔 마커 엘리먼트를
+// host의 라이트 DOM 자식으로 그대로 두고 마운트 시점에 한 번만 읽어 files를
+// 직접 채운다(추가 네트워크 요청 없음). 순수 변환은 markers.ts(TDD)에 있다.
+function readInitialAttachmentMarkers(): AttachmentMarker[] {
+  if (!host) return [];
+  return Array.from(host.querySelectorAll<HTMLElement>(":scope > .attached-file-marker")).map((el) => ({
+    id: el.dataset.id ?? "",
+    name: el.dataset.name ?? "",
+    href: el.dataset.href ?? "",
+    mime: el.dataset.mime ?? "",
+    size: el.dataset.size ?? "",
+  }));
+}
+
 function loadExistingAttachments(resourceType: string, resourceId?: string): void {
   const params = new URLSearchParams({ containerType: resourceType || "", containerId: resourceId || "" });
   fetch(`${listURL}?${params}`)
@@ -422,6 +447,10 @@ function configure(options: ConfigureOptions & { resourceType?: string; resource
 
 onMounted(() => {
   updateHiddenInput();
+  const markers = readInitialAttachmentMarkers();
+  if (markers.length > 0) {
+    files.value = markersToFiles(markers);
+  }
 });
 
 onUnmounted(() => {

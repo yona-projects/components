@@ -83,13 +83,22 @@ TomSelect 스캐너가 `DOMContentLoaded`에 이미 빈 `<select>`를 스냅샷�
 새 위젯을 만드는 게 아니라 **이미 이식된 위젯을 확장/재사용하거나 검증을 보강**해야
 하는 항목들이다.
 
-1. **`yona.CommentAttachmentsUpdate.js`(240줄)를 `<yona-attachments>`로 흡수**: 댓글
-   수정 폼(`common/commentUpdateForm.html`, `board/view.html`/`issue/view.html`/
-   `common/attachmentFile.html`/`site/layout.html`에서 실사용)의 드롭존/업로드/삭제/
-   드래그앤드롭/붙여넣기 로직이 이미 이식된 `yona.Attachments.js`와 사실상 동일한데
-   마크업 계약만 다르다(`.attached-file-marker`/`.textarea-box`/`.file-upload__input`
-   vs `<yona-attachments>`가 기대하는 `common/uploadForm.html` 계약). 새 위젯 설계가
-   아니라 **기존 컴포넌트가 이 마크업 계약까지 흡수하도록 확장하는 통합 작업**.
+1. ~~**`yona.CommentAttachmentsUpdate.js`(240줄)를 `<yona-attachments>`로 흡수**~~
+   — 확장 완료(2026-09-16, `../README.md`의 "attachments 위젯" 절 "확장" 항목
+   참고). 예상대로 새 위젯 설계는 필요 없었다 - `<yona-attachments>`에 마커
+   기반 초기 데이터 읽기(`markers.ts`, TDD)만 추가하면 됐다. 예상 못 한
+   발견 둘: (1) 댓글 수정 폼의 `temporaryUploadFiles` 히든 필드는 완전히 죽은
+   값이었다(실제 PUT은 `{contents, sendNotificationMail}`만 보내는 JSON이고,
+   백엔드가 저장된 마크다운의 `/files/{id}` 링크를 정규식으로 스캔해 첨부파일을
+   재연결한다) - 그래서 CSV 추적을 재현할 필요가 아예 없었다. (2) 백엔드
+   `AccessControl.isAllowedAttachment()`에 `ISSUE_COMMENT`/`NONISSUE_COMMENT`
+   케이스가 없어(`else -> false`) 기존 `resourceType`/`resourceId` 기반 비동기
+   조회를 그대로 못 썼다 - 백엔드 보안 코드 수정은 스코프 밖이라, 서버가 이미
+   렌더링해둔 데이터를 라이트 DOM 마커로 두고 마운트 시점에 한 번만 읽어
+   네트워크 요청 자체를 없애는 방식으로 우회했다. 덤으로 `listURL` 기본값이
+   실제 없는 엔드포인트(`/attachments`)를 가리키던 기존 버그도 발견해 고쳤다
+   (`/files`로 수정). real-substitution 검증(이슈 댓글 + 게시글 댓글 양쪽)
+   에서 버그 0건 - 설계대로 한 번에 통과했다.
 2. **`yona.code.SvnDiff.js`가 `<yona-review-form>`을 안 쓰고 있음**: `_showCommentBox`/
    `_hideCommentBox`(359~451행)가 이미 이식된 review-form을 재사용하지 않고 자체
    댓글박스 이동 로직을 따로 구현 중이다. 신규 포팅이 아니라 **기존 위젯으로 갈아끼우는
