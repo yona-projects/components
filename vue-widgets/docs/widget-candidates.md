@@ -5,12 +5,13 @@
 재조사한 결과다. common/은 이 세션에서 두 번째 전수조사(첫 조사에서 놓친 Tooltip/Popover
 시스템을 새로 발견), service/는 이번이 첫 조사다.
 
-**이미 이식 완료(11개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
+**이미 이식 완료(12개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
 패널, 토스트(`yona.ui.Toast.js`), 스위치(`yona.ui.Switch.js`), 드롭다운(`yona.ui.Dropdown.js`),
 다이얼로그(`yona.ui.Dialog.js`), 타입어헤드(`yona.ui.Typeahead.js`), 첨부파일
 (`yona.Attachments.js`), review-form(`yona.CodeCommentBox.js`), pagination
 (`yona.Pagination.js`), **login-dialog(`yona.LoginDialog.js`, 2026-09-15 완료 - 아래
-1번이었던 항목)**.
+1번이었던 항목)**, **scroll-elevator(`yona.ScrollElevator.js`, 2026-09-15 완료 - 아래
+2번이었던 항목)**.
 
 ## 진짜 위젯 후보 (권장 착수 순서)
 
@@ -25,12 +26,11 @@
 (`.loginDialog .error { display: none; }`를 `v-show`만으로는 못 이김)를 실측 중 새로
 발견해 고쳤다. 자세한 내용은 README 참고.
 
-### 2. `yona.ScrollElevator.js` (154줄) — 난이도 낮음
+### ~~2. `yona.ScrollElevator.js`~~ — 이식 완료(`../README.md`의 "scroll-elevator 위젯" 절 참고)
 
-서버 마크업 없이 완전히 자체 DOM을 생성해 `document.body`에 붙이고 `destroy()`까지
-제공하는 가장 깨끗한 위젯 형태(Toast와 동일한 프로그래밍적 마운트 패턴). 외부 의존
-없음. 실사용은 `board/view.html`/`issue/view.html` 2곳뿐이라 재사용 이득은 크지 않지만,
-포팅 자체는 이 목록에서 가장 빠르게 끝낼 수 있다.
+예상대로 가장 간단했다 - 감쌀 대상 서버 마크업이 아예 없어(원본부터 body에 직접
+DOM을 생성) 어댑터가 새 엘리먼트를 만들어 붙이는 방식으로 대응했고, `<Teleport
+to="body">`로 서드파티 jquery.elevator.css(413줄)를 이식 없이 그대로 상속받았다.
 
 ### 3. PageSlide 오버레이 패널 — `yona.twoColumnMode.js`의 `_pageslide*` 함수군(약 90줄) — 난이도 낮음-중간
 

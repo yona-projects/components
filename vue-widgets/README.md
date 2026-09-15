@@ -35,11 +35,14 @@ src/
   login-dialog/   - 익명 사용자용 로그인 다이얼로그(YonaLoginDialog.vue, element.ts -
                     <Teleport to="body">로 review-form과 같은 이유(전역 CSS 상속)로
                     라이트 DOM에 그린다, fetch() 기반 제출)
+  scroll-elevator/ - "맨 위로/맨 아래로 스크롤" 버튼(YonaScrollElevator.vue, element.ts -
+                    <Teleport to="body">로 서드파티 jquery.elevator.css를 그대로
+                    상속받는다, 서버 렌더 대상 없이 항상 새 엘리먼트를 만들어 붙임)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
                     마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
-                    어태치먼트/review-form/pagination/login-dialog는 시각 템플릿이
-                    없거나 정적 마크업으로 데모하기 애매해서 이 데모에는 포함하지
-                    않았다(스모크 테스트로만 검증)
+                    어태치먼트/review-form/pagination/login-dialog/scroll-elevator는
+                    시각 템플릿이 없거나 정적 마크업으로 데모하기 애매해서 이
+                    데모에는 포함하지 않았다(스모크 테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts  - 위젯별
   순수 함수 단위 테스트(파일명 접두어로 구분)
@@ -47,7 +50,8 @@ smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
   dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
-  review-form-element.mjs, pagination-element.mjs, login-dialog-element.mjs
+  review-form-element.mjs, pagination-element.mjs, login-dialog-element.mjs,
+  scroll-elevator-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -555,16 +559,55 @@ URL/헤더/바디 검증은 리로드가 없는 실패 시나리오 쪽에서 �
 그대로 전달), 그렇지 않으면 원본 vanilla `_initElement`/`_attachEvent`
 전체가 처리한다.
 
+## scroll-elevator 위젯
+
+`yona.ScrollElevator.js`(jquery.elevator.js를 대체한 vanilla 구현)를 다시
+썼다. "맨 위로/맨 아래로 스크롤" 버튼으로, `board/view.html`/`issue/view.html`
+2곳에서만 쓰인다(실사용 빈도는 낮지만 후보 조사에서 "서버 마크업 없이
+완전히 자체 DOM을 생성해 body에 붙이고 `destroy()`까지 제공하는 가장 깨끗한
+위젯 형태"로 꼽혔다).
+
+**다른 위젯과 다른 점 - 감쌀 대상 엘리먼트가 아예 없다**: Pagination/
+Typeahead는 서버가 미리 그려둔 컨테이너를 그 자리에서 감싸는 패턴이었는데,
+이 위젯은 원본부터 `document.body.appendChild(container)`로 처음부터
+DOM을 만들어 붙이는 구조라 감쌀 대상 자체가 없다 - 하이브리드 어댑터가
+직접 `<yona-scroll-elevator>`를 만들어 body에 추가하는 방식으로 대응했다.
+
+**`<Teleport to="body">` 사용 이유(review-form/login-dialog와 같은 이유 -
+CSS 포팅 회피)**: 이 위젯의 스타일은 전부 `jquery.elevator.css`(413줄,
+`board/view.html`/`issue/view.html`이 각자 `<link>`로 로드하는 서드파티
+플러그인 CSS - yona.css가 아니다)에 있다. Shadow DOM에 그대로 두면(Toast
+처럼) 이 CSS 전체를 이식해야 했다 - Teleport로 옮기면 host 페이지가 이미
+로드해둔 `jquery.elevator.css`를 그대로 상속받아 포팅이 전혀 필요 없다.
+원본도 어차피 body에 직접 append하던 위젯이라 위치상 손실도 없다.
+
+**공개 계약**: 원본의 `{destroy: fn}` 리턴값 계약을 그대로 유지한다 -
+컴포넌트 자신의 `destroy()`는 스크롤 리스너 해제만 담당하고(Vue의
+`onUnmounted`와 대칭), 어댑터가 반환하는 `destroy`는 그 위에 host
+엘리먼트 자체를 `remove()`해 원본처럼 완전히 흔적 없이 사라지게 한다.
+
+**실대치 검증**: 실제 프로젝트에 실제 게시글을 하나 작성해 실제
+`board/view.html`에서 확인했다 - 실제 `shape: 'rounded', glass: true`
+옵션이 클래스에 반영되는지, 실제 클릭으로 실제 페이지 최하단/최상단까지
+스크롤되는지까지 전부 실서버 화면에서 스크린샷으로 확인했다(우측 하단에
+glass 스타일 버튼이 원본과 동일하게 렌더링됨).
+
+**하위 호환**: `yona.ScrollElevator.js`도 하이브리드 어댑터로 다시 썼다 -
+커스텀 엘리먼트가 로드돼 있으면 `<yona-scroll-elevator>`를 만들어 옵션을
+data-*로 넘기고 body에 추가한 뒤 `{destroy}`를 반환하며, 그렇지 않으면
+원본 vanilla 구현이 처리한다.
+
 ## 진짜로 여기서 마감한 후보들
 
-열한 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
-어태치먼트/review-form/pagination/login-dialog)을 거치며 배운 것: "위젯
-경계가 없다"는 판단은 거의 항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/
-Attachments/review-form 다섯 다 처음엔 이 목록에 있었지만 전부 실제로
-구현·실대치 검증까지 마쳤다(pagination/login-dialog는 처음부터 위젯
-경계가 명확해 이 목록에 있던 적이 없다). 아래는 그중 실제로 조사해도
-위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이
-없는(Calendar/TomSelect) `yona.ui.*` 계열 경우만 남았다.
+열두 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트/review-form/pagination/login-dialog/scroll-elevator)을 거치며
+배운 것: "위젯 경계가 없다"는 판단은 거의 항상 검증 부족이었다 -
+Dialog/Dropdown/Typeahead/Attachments/review-form 다섯 다 처음엔 이
+목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다(pagination/
+login-dialog/scroll-elevator는 처음부터 위젯 경계가 명확해 이 목록에
+있던 적이 없다). 아래는 그중 실제로 조사해도 위젯 경계 자체가 없거나
+(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이 없는(Calendar/TomSelect)
+`yona.ui.*` 계열 경우만 남았다.
 
 **`common/`/`service/` 전체(77개 파일)를 대상으로 한 최신 전수조사**는
 [docs/widget-candidates.md](docs/widget-candidates.md)에 별도로 정리했다 -
@@ -613,32 +656,34 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 열한 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+npm run build:elements  # 열두 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
                          # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
                          # <yona-typeahead>/<yona-attachments>/<yona-review-form>/
-                         # <yona-pagination>/<yona-login-dialog> 네이티브 커스텀
-                         # 엘리먼트로 한 번에(dist-element/, es 모듈 포맷 - 엔트리
-                         # 11개 + 위젯들이 공유하는 청크 - 청크 파일명은 빌드마다
-                         # 바뀔 수 있다)
+                         # <yona-pagination>/<yona-login-dialog>/<yona-scroll-elevator>
+                         # 네이티브 커스텀 엘리먼트로 한 번에(dist-element/, es 모듈
+                         # 포맷 - 엔트리 12개 + 위젯들이 공유하는 청크 - 청크
+                         # 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 11개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 12개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
 `yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`/
 `yona-review-form-element.js`/`yona-pagination-element.js`/
-`yona-login-dialog-element.js` + 공유 청크 - 엔트리들이
-상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona
-저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
+`yona-login-dialog-element.js`/`yona-scroll-elevator-element.js` + 공유 청크 -
+엔트리들이 상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를
+yona 저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
 `<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/
 `<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>`/`<yona-pagination>`/
-`<yona-login-dialog>` - 단, `<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고
-`yona.ui.Typeahead.js` 어댑터가, `<yona-pagination>`도 정적 템플릿에 쓰지 않고
-`yona.Pagination.js` 어댑터가 기존 `<div id="pagination">`을 그 자리에서
-감싼다)와 **`<script type="module">`**을 넣으면 됩니다(각 위젯
+`<yona-login-dialog>`/`<yona-scroll-elevator>` - 단, `<yona-typeahead>`는 정적
+템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js` 어댑터가, `<yona-pagination>`도
+정적 템플릿에 쓰지 않고 `yona.Pagination.js` 어댑터가 기존
+`<div id="pagination">`을 그 자리에서 감싸며, `<yona-scroll-elevator>`도
+정적 템플릿에 쓰지 않고 `yona.ScrollElevator.js` 어댑터가 직접 만들어
+body에 붙인다)와 **`<script type="module">`**을 넣으면 됩니다(각 위젯
 구현의 세부 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고).
 커스텀 엘리먼트들은 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유
 청크만 같이 복사하면 됩니다.
@@ -751,8 +796,17 @@ review-form은 라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심�
   JSON 에러 메시지(Messages()로 변환)/성공(실제 페이지 리로드) 세 경로 모두
   올바르게 동작하는지(성공 케이스는 `document.location.reload`를 JS로 가로챌
   수 없다는 실측 결과에 따라 실제 리로드 발생 자체를 확인) 확인.
+- `scroll-elevator-element.mjs`: `dist-element/yona-scroll-elevator-element.js`를
+  정적 HTML(`scroll-elevator-element.html`, `<script type="module">` +
+  `data-*` 옵션)에 로드해 (a) `<Teleport to="body">`로 실제 body 직계 자식이
+  되는지, (b) `data-shape`/`data-glass`/기본 `align`이 클래스에 정확히
+  반영되는지, (c) 실제 스크롤 위치(최상단/중간/최하단)에 따라 위아래 버튼
+  크기 클래스(jq-sml/jq-mid/jq-big)가 정확히 전환되는지, (d) 실제 클릭으로
+  실제 페이지가 최상단/최하단까지 스크롤되는지(모킹 없이 real scroll), (e)
+  `tooltips` 옵션에 따라 `title` 속성/내부 span 중 올바른 방식으로 표시되는지,
+  (f) `destroy()` 호출 + host 제거로 실제로 완전히 사라지는지 확인.
 
-`*-element.mjs` 열한 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 열두 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/
