@@ -16,13 +16,14 @@ src/
                     YonaMarkdownEditor.vue, element.ts)
   help-markdown/  - 마크다운 도움말 패널(toggle.ts, examples.ts, MarkdownHelp.vue, element.ts)
   toast/          - 토스트 알림(format.ts, Toast.vue, element.ts)
-  App.vue         - 세 위젯을 한 페이지에 나란히 마운트하는 개발/데모 하네스
+  switch/         - 알림 on/off 스위치(YonaSwitch.vue, element.ts)
+  App.vue         - 네 위젯을 한 페이지에 나란히 마운트하는 개발/데모 하네스
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts  - 위젯별 순수 함수 단위 테스트
   (파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
-  toast.mjs, toast-element.mjs
+  toast.mjs, toast-element.mjs, switch-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -117,6 +118,48 @@ message/title 포맷팅(줄바꿈 → `<br>`, title 굵게 처리 - 원본 `noti
 title)`과 `yona.ui.Toast.push()`의 `$yona.nl2br()`을 합친 것)은 `format.ts`의 순수 함수
 `toastHtml()`로 뽑아 단위 테스트했습니다.
 
+## switch 위젯
+
+`yona.ui.Switch.js`(bootstrap-switch.js를 대체한 vanilla 구현)를 다시 작성했습니다.
+유일한 실사용처는 `user/edit_notifications.html`의 알림 on/off 토글입니다. 원본과
+마찬가지로 **체크박스 자신이 진실의 원천**입니다 - `service/yona.user.Setting.js`가
+`document.querySelectorAll(".notiUpdate")`로 체크박스를 직접 찾아 `change` 리스너를
+붙이므로, 이 컴포넌트는 체크박스를 대신하지 않고 `<slot>`으로 라이트 DOM에 그대로
+투과시킵니다(에디터 위젯의 light-DOM textarea와 같은 이유 - Shadow DOM 안에 있으면
+외부 코드가 못 찾는다). 실제 노드는 `<slot>` ref의 `assignedElements()`로 얻어와
+checked/disabled를 읽고 change를 걸고 dispatch합니다.
+
+**중요(실 대치 검증에서만 드러난 버그 두 개, 옆에 나란히 두는 비교로는 절대 안
+드러남)**:
+1. **커스텀 엘리먼트 호스트가 기본값 `display: inline`이라 생기는 레이아웃 붕괴**:
+   원본 CSS(`.has-switch { display: inline-block; ... }`)는 Shadow DOM 안의 내부 div에만
+   적용되고, 정작 호스트(`<yona-switch>`) 자신은 아무 스타일도 없으면 브라우저 기본값인
+   `display: inline`으로 렌더진다. 이 상태에서 내부의 float 레이아웃(스위치 좌/우
+   라벨)이 inline 호스트의 박스 바깥으로 새어나가, 실제 페이지의 옆 테이블 셀(`<th>`)과
+   클릭 가능 영역이 겹쳐버리는 진짜 클릭 회귀가 있었다(Playwright로 실제 페이지에서
+   클릭이 계속 다른 엘리먼트에 가로채이는 것으로 발견). `:host { display: inline-block; }`
+   로 해결.
+2. **`scoped` 블록 안의 `:host`/`:slotted()`가 customElement 빌드에서 조용히
+   무효화됨**: Vue의 `scoped` CSS 변환이 일반 셀렉터에는 `[data-v-xxx]` 속성 셀렉터를
+   뒤에 붙이는데, `:host`에 이 변환을 그대로 적용하면 `[data-v-xxx]:host`가 되어
+   버린다 - `:host`는 반드시 compound selector의 맨 앞에 와야 한다는 CSS Shadow DOM
+   스펙 규칙 때문에 이 형태는 아예 매치되지 않는 무효 셀렉터다. 브라우저는 이런 무효
+   규칙을 에러 없이 조용히 무시하므로 빌드도 성공하고 콘솔에도 아무 신호가 없다 -
+   실제로 요소를 붙여서 레이아웃을 재보기 전까지는 절대 못 알아챈다. `:slotted()`도
+   같은 문제로 컴파일된 CSS에서 통째로 사라져(체크박스가 안 숨겨져 float 레이아웃이
+   더 깨짐) 있었다. 해결: 이 두 규칙만 **scoped가 아닌 별도 `<style>` 블록**으로 뺐다
+   (`YonaSwitch.vue` 참고) - 단, scoped를 안 거치므로 Vue 전용 단일 콜론 `:slotted()`가
+   아니라 표준 CSS 이중 콜론 `::slotted()`를 직접 써야 한다(단일 콜론을 쓰면
+   lightningcss가 빌드 시 "not recognized" 경고를 내고 그 규칙도 무효가 된다 - 이것도
+   실측 확인).
+
+이 두 버그는 하나의 공통 교훈으로 이어진다: **defineCustomElement + scoped 스타일을
+쓰는 위젯은 host 자체의 box 모델에 관여하는 CSS(`display` 등)나 `:slotted()`가
+필요하면, 그 규칙들은 scoped 블록 밖에 둬야 한다.** 에디터/토스트/도움말 패널은
+Shadow DOM 안에서 전부 완결되는 레이아웃이라 이 문제를 겪지 않았다 - 처음으로
+"호스트 자신의 표시 방식"과 "라이트 DOM 콘텐츠 스타일링"이 실제로 필요해진 위젯이
+스위치였다.
+
 ## 요구 사항
 
 - Node.js `>= 18`
@@ -128,7 +171,7 @@ npm install
 npm run dev
 ```
 
-`src/App.vue`가 세 위젯을 한 페이지에 마운트합니다(에디터/도움말 패널이 위 -
+`src/App.vue`가 네 위젯을 한 페이지에 마운트합니다(에디터/도움말 패널이 위 -
 원본 yona 화면에서 markdownEditor 프래그먼트 옆에 help/markdown 프래그먼트가 나란히
 있는 배치와 동일 -, 토스트는 버튼으로 트리거해보는 데모).
 
@@ -136,21 +179,22 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 세 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
-                         # <yona-toast> 네이티브 커스텀 엘리먼트로 한 번에(dist-element/,
-                         # es 모듈 포맷 - 엔트리 3개 + 위젯들이 공유하는
+npm run build:elements  # 네 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+                         # <yona-toast>/<yona-switch> 네이티브 커스텀 엘리먼트로 한 번에
+                         # (dist-element/, es 모듈 포맷 - 엔트리 4개 + 위젯들이 공유하는
                          # _plugin-vue_export-helper-*.js 청크)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 3개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 4개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
-`yona-toast-element.js` + 공유 청크 `_plugin-vue_export-helper-*.js` - 엔트리들이
-상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona 저장소에
-vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
-`<yona-toast>`)와 **`<script type="module">`**을 넣으면 됩니다(각 위젯 구현의 세부
+`yona-toast-element.js`/`yona-switch-element.js` + 공유 청크
+`_plugin-vue_export-helper-*.js` - 엔트리들이 상대 경로 `import`로 참조하므로 같은
+디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고, 템플릿에 해당 태그
+(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/`<yona-toast>`/`<yona-switch>`)와
+**`<script type="module">`**을 넣으면 됩니다(각 위젯 구현의 세부
 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고). 커스텀 엘리먼트들은
 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유 청크만 같이 복사하면 됩니다.
 
@@ -165,7 +209,9 @@ vendoring됐을 때만 정상 표시됩니다.
 npm run test
 ```
 
-세 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 = 53개)를
+네 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 = 53개 -
+스위치는 라이트 DOM 체크박스 조작이 핵심이라 순수 함수로 뽑을 로직이 없어 전부
+스모크 테스트로만 검증)를
 esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
 
 ## 스모크 테스트
@@ -191,8 +237,13 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
   사라짐/duration 경과 후 자동 소멸/clear()로 전부 제거) 확인.
 - `toast-element.mjs`: `dist-element/yona-toast-element.js`를 정적 HTML
   (`toast-element.html`, `<script type="module">`)에 로드해 같은 동작 확인.
+- `switch-element.mjs`: `dist-element/yona-switch-element.js`를 정적 HTML
+  (`switch-element.html`, `<script type="module">`)에 로드해 (a) 슬롯된 체크박스가
+  document 레벨에서 여전히 검색 가능한지(라이트 DOM 유지 확인), (b) `.switch-left`/
+  `.switch-right` 클릭과 스페이스바로 실제 토글되는지, (c) 그때마다 라이트 DOM
+  체크박스에 진짜 `change` 이벤트가 발생하는지 확인.
 
-`*-element.mjs` 세 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 네 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/

@@ -8,6 +8,7 @@ import { ref } from "vue";
 import YonaMarkdownEditor from "./editor/YonaMarkdownEditor.vue";
 import MarkdownHelp from "./help-markdown/MarkdownHelp.vue";
 import Toast from "./toast/Toast.vue";
+import YonaSwitch from "./switch/YonaSwitch.vue";
 
 const text = ref("");
 const editorRef = ref<InstanceType<typeof YonaMarkdownEditor> | null>(null);
@@ -37,5 +38,10 @@ if (typeof window !== "undefined") {
     <button type="button" @click="toastRef?.push('저장되었습니다', 3000)">3초짜리 토스트</button>
     <button type="button" @click="toastRef?.push('닫기 전까지 유지됩니다', 0, '알림')">제목 있는 영구 토스트</button>
     <Toast ref="toastRef" />
+
+    <h2 style="margin-top: 32px;">스위치</h2>
+    <YonaSwitch on-label="On" off-label="Off">
+      <input class="notiUpdate" type="checkbox" checked />
+    </YonaSwitch>
   </div>
 </template>
