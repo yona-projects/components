@@ -24,6 +24,6 @@ yona(https://github.com/yona-projects/yona)에서 쓰는 자체 제작 Web Compo
 - [`editor/`](./editor) — CodeMirror 6 기반 마크다운 에디터 Web Component
   (`<yona-markdown-editor>`). yona의 CodeMirror5 기반 마크다운 에디터+Tribute.js 조합을 대체.
   실사용 중인 원본 버전.
-- [`vue-widgets/`](./vue-widgets) — 위 `editor/`를 포함해 yona 위젯 몇 개를 Vue 3
+- [`vue-widgets/`](./vue-widgets) — `editor/`를 비롯한 yona 위젯 몇 개를 Vue 3
   Composition API + TypeScript SFC로 다시 작성한 비교용 파일럿 모음(마크다운 에디터,
-  마크다운 도움말 패널). 아직 yona 본체에 vendoring되지 않았습니다.
+  마크다운 도움말 패널, 토스트 알림). 아직 yona 본체에 vendoring되지 않았습니다.

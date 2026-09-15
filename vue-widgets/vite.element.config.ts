@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
-// 두 위젯을 하나의 vite build 호출로 각자의 네이티브 커스텀 엘리먼트 번들로 만든다.
+// 위젯들을 하나의 vite build 호출로 각자의 네이티브 커스텀 엘리먼트 번들로 만든다.
 // 원래 iife 포맷을 썼을 때는 Rollup 자체가 "iife/umd 포맷은 멀티 엔트리를 지원하지
 // 않는다"는 제약이 있어(iife/umd는 번들 전체를 하나의 전역 스코프 함수로 감싸는 구조라
 // 엔트리 간 청크를 나누거나 공유할 방법이 없기 때문) VUE_WIDGET_TARGET 환경변수로 같은
@@ -12,7 +12,7 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [
     vue({
-      customElement: /(YonaMarkdownEditor|MarkdownHelp)\.vue$/,
+      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast)\.vue$/,
     }),
   ],
   // 라이브러리 빌드는 index.html 기반 앱 빌드와 달리 Vue 런타임의 `process.env.NODE_ENV`
@@ -27,6 +27,7 @@ export default defineConfig({
       entry: {
         "yona-markdown-editor-vue-element": "src/editor/element.ts",
         "yona-help-markdown-element": "src/help-markdown/element.ts",
+        "yona-toast-element": "src/toast/element.ts",
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
