@@ -5,14 +5,15 @@
 재조사한 결과다. common/은 이 세션에서 두 번째 전수조사(첫 조사에서 놓친 Tooltip/Popover
 시스템을 새로 발견), service/는 이번이 첫 조사다.
 
-**이미 이식 완료(13개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
+**이미 이식 완료(14개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
 패널, 토스트(`yona.ui.Toast.js`), 스위치(`yona.ui.Switch.js`), 드롭다운(`yona.ui.Dropdown.js`),
 다이얼로그(`yona.ui.Dialog.js`), 타입어헤드(`yona.ui.Typeahead.js`), 첨부파일
 (`yona.Attachments.js`), review-form(`yona.CodeCommentBox.js`), pagination
 (`yona.Pagination.js`), **login-dialog(`yona.LoginDialog.js`, 2026-09-15 완료 - 아래
 1번이었던 항목)**, **scroll-elevator(`yona.ScrollElevator.js`, 2026-09-15 완료 - 아래
 2번이었던 항목)**, **page-slide(`yona.twoColumnMode.js`의 `_pageslide*`, 2026-09-15
-완료 - 아래 3번이었던 항목)**.
+완료 - 아래 3번이었던 항목)**, **popover(`yona.Common.js`의 툴팁/팝오버 시스템,
+2026-09-15 완료 - 아래 4번이었던 항목)**.
 
 ## 진짜 위젯 후보 (권장 착수 순서)
 
@@ -43,29 +44,15 @@ to="body">`로 서드파티 jquery.elevator.css(413줄)를 이식 없이 그대�
 캐싱했다. "하위 호환 계약을 최대한 원본과 똑같이 유지하려는 선택"이 오히려 새
 버그의 원인이 될 수 있다는 사례로 남는다.
 
-### 4. Tooltip/Popover 플로팅 위치 시스템 — `yona.Common.js`(신규 발견, 이전 조사에서 "기반
-유틸리티"로 뭉뚱그려졌던 부분) — 난이도 중간-높음, 그러나 사용 빈도 압도적
+### ~~4. Tooltip/Popover 플로팅 위치 시스템~~ — 이식 완료(`../README.md`의 "popover 위젯" 절 참고)
 
-`showTooltip`/`hideTooltip`(954·978행), `showPopoverError`/`hidePopoverError`
-(1005·1019행), `initHoverPopovers`(863행) — 각각 자체 DOM(`.tooltip`/`.popover` div)을
-생성해 `document.body`(또는 `_getPopoverContainer`)에 붙이고 위치 계산까지 하는 완결된
-show/hide 계약이다. 세 계약이 내부적으로 같은 위치계산 함수(`_positionPopoverElement`/
-`_getPopoverContainer`)를 공유한다는 주석까지 확인돼, 하나의 "플로팅 포지션 요소" 위젯
-패밀리로 통합 이식할 수 있다.
-
-실사용(재확인 완료):
-- `showTooltip`/`hideTooltip`: `layout.html`이 전역 위임으로 바인딩, `data-toggle="tooltip"`
-  실사용 **30개 템플릿**(`grep -rl` 재확인 완료).
-- `showPopoverError`/`hidePopoverError`: 실사용 5개 서비스 파일(`yona.user.Setting.js`,
-  `yona.resetPassword.js`, `yona.project.New.js`, `yona.issue.LabelEditor.js`,
-  `yona.user.SignUp.js`) - 폼 검증 에러 표시.
-- `initHoverPopovers`: 실사용 3곳(`index.html`, `code/view.html`, `site/layout_framed.html`).
-
-Shadow DOM 충돌 지점: tooltip/hover popover는 Dropdown처럼 **전역 델리게이트가 트리거를
-소유**(개별 컴포넌트가 아니라 `data-toggle`/`data-content` 속성을 스캔) + `data-html="true"`인
-경우 임의 HTML을 신뢰해야 한다(Dialog의 "임의 버튼 클래스"와 같은 유형의 라이트 DOM
-이슈). `showPopoverError`는 반대로 호출부가 직접 명시적으로 부르는 단순 계약이라 더
-쉽다 - 셋을 한 번에 묶기보다 `showPopoverError`부터 먼저 떼어내는 것도 방법이다.
+예상대로 사용 빈도가 압도적이었다(`data-toggle="tooltip"` 30개 템플릿 실사용 재확인).
+"난이도 중간-높음"으로 예상했던 근거(Shadow DOM 충돌 - 전역 델리게이트가 트리거를
+소유 + `data-html="true"` 임의 HTML)는 실제로는 `<Teleport>`를 트리거마다 동적으로
+body/열린 dialog에 바꿔 그리는 것으로 CSS 포팅 없이 한 번에 해결됐다(review-form/
+login-dialog의 "고정된 한 곳에 Teleport"보다 한 단계 더 나아간 "매번 다른 곳에
+Teleport" 패턴). page-slide에서 배운 "host에 원본과 같은 id를 주면 전역 CSS와
+충돌할 수 있다"는 교훈을 처음부터 반영해 별도 버그 없이 한 번에 통과했다.
 
 ### 5. Label 관리 패널 — `yona.issue.LabelEditor.js`(980줄, 44개 함수) — 난이도 높음(review-form급)
 

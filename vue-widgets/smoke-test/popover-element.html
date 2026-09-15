@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title></head>
+<body>
+<button id="tooltip-trigger" data-toggle="tooltip" title="툴팁 내용">버튼</button>
+<button id="tooltip-html-trigger" data-toggle="tooltip" data-html="true" title="<b>굵게</b>">HTML 버튼</button>
+<input id="error-target" type="text" />
+<div id="hover-trigger" data-toggle="popover" data-content="호버 팝오버 내용" data-original-title="팝오버 제목">호버 대상</div>
+
+<dialog id="test-dialog">
+  <button id="dialog-tooltip-trigger" data-toggle="tooltip" title="다이얼로그 안 툴팁">다이얼로그 버튼</button>
+</dialog>
+
+<yona-popover id="target"></yona-popover>
+<script type="module" src="../dist-element/yona-popover-element.js"></script>
+</body>
+</html>

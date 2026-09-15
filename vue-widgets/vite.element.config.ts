@@ -12,7 +12,7 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [
     vue({
-      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments|YonaReviewForm|YonaPagination|YonaLoginDialog|YonaScrollElevator|YonaPageSlide)\.vue$/,
+      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments|YonaReviewForm|YonaPagination|YonaLoginDialog|YonaScrollElevator|YonaPageSlide|YonaPopover)\.vue$/,
     }),
   ],
   // 라이브러리 빌드는 index.html 기반 앱 빌드와 달리 Vue 런타임의 `process.env.NODE_ENV`
@@ -38,6 +38,7 @@ export default defineConfig({
         "yona-login-dialog-element": "src/login-dialog/element.ts",
         "yona-scroll-elevator-element": "src/scroll-elevator/element.ts",
         "yona-page-slide-element": "src/page-slide/element.ts",
+        "yona-popover-element": "src/popover/element.ts",
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,

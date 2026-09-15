@@ -42,20 +42,27 @@ src/
                     element.ts - CSS는 인라인 스타일로 직접 재현, host에는
                     id를 주지 않는다(전역 #pageslide 규칙과 충돌 방지 - 어댑터가
                     클로저 변수로 엘리먼트를 캐싱))
+  popover/        - 툴팁/팝오버 플로팅 위치 시스템(popover.ts 순수 함수 +
+                    YonaPopover.vue, element.ts - showTooltip/hideTooltip/
+                    showPopoverError/hidePopoverError/initHoverPopovers 다섯
+                    계약을 하나의 싱글턴으로 통합, <Teleport>를 트리거마다
+                    동적으로 body/열린 dialog에 바꿔 그린다)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
                     마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
                     어태치먼트/review-form/pagination/login-dialog/scroll-elevator/
-                    page-slide는 시각 템플릿이 없거나 정적 마크업으로 데모하기
-                    애매해서 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
+                    page-slide/popover는 시각 템플릿이 없거나 정적 마크업으로
+                    데모하기 애매해서 이 데모에는 포함하지 않았다(스모크
+                    테스트로만 검증)
 test/
-  editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts  - 위젯별
+  editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts,
+  popover.test.ts  - 위젯별
   순수 함수 단위 테스트(파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
   dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
   review-form-element.mjs, pagination-element.mjs, login-dialog-element.mjs,
-  scroll-elevator-element.mjs, page-slide-element.mjs
+  scroll-elevator-element.mjs, page-slide-element.mjs, popover-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -653,16 +660,69 @@ DOM id 대신 클로저 변수(`_pageslideVueEl`)로 엘리먼트를 직접 캐�
 `.left-menu` 복원처럼 위젯이 모르는 페이지 고유 관심사는 어댑터 쪽에
 그대로 남겼다.
 
+## popover 위젯
+
+`yona.Common.js`의 툴팁/팝오버 플로팅 위치 시스템 - `showTooltip`/`hideTooltip`,
+`showPopoverError`/`hidePopoverError`, `initHoverPopovers` 다섯 계약을 하나의
+싱글턴으로 다시 썼다. 셋 다 내부적으로 같은 위치 계산(`_positionPopoverElement`/
+`_getPopoverContainer`)을 공유한다는 원본 주석을 그대로 따른 통합이다.
+`data-toggle="tooltip"`이 30개 템플릿에서, `showPopoverError`가 5개 서비스
+파일에서, `initHoverPopovers`가 3곳에서 쓰인다 - 이번 세션에서 검토한 후보 중
+실사용 빈도가 가장 높다.
+
+**TDD로 위치 계산부터 시작**: 원본의 위치 계산 공식(placement별 top/left,
+컨테이너가 body냐 dialog냐에 따른 오프셋 분기)을 `popover.ts`로 뽑아 컴포넌트
+보다 먼저 테스트(`test/popover.test.ts`, 8개)를 작성했다 - `bottom`/`left`/
+`right`/`top` 네 배치와 인식 안 되는 placement가 원본 switch문과 동일하게
+top으로 떨어지는 것까지 pagination과 같은 방식으로 먼저 못박아뒀다.
+
+**범위 - 트리거는 이 위젯 소유가 아니다**: `showTooltip`/`hideTooltip`은
+`site/layout.html`의 전역 mouseenter/mouseleave/focus/blur 델리게이트가
+`[data-toggle="tooltip"]`을 찾아 호출한다(Dropdown과 동일한 "전역 델리게이트가
+트리거를 소유"하는 경계 판단) - 이 위젯은 호출받으면 그릴 뿐이다.
+`initHoverPopovers(selector)`만 예외적으로 스스로 리스너를 붙이는데(원본도
+그랬다), 그것도 "찾아서 붙인다"일 뿐 위젯 외부의 다른 요소를 조작하지는
+않는다.
+
+**`<Teleport>`를 동적 대상으로 사용 - CSS 포팅 회피 + dialog-awareness 동시
+해결**: 원본이 `.tooltip`/`.popover`(bootstrap.css) 마크업을 그대로 쓰므로
+Shadow DOM에 두면 그 전역 CSS 전체를 이식해야 했다 - Teleport로 실제 라이트
+DOM에 그리면 포팅이 전혀 필요 없다. 게다가 원본의 `_getPopoverContainer`가
+"트리거가 열린 `<dialog>` 안에 있으면 그 dialog를 부모로 써야 한다"(네이티브
+`<dialog>`는 top layer에서 그려져 일반 z-index로는 못 이긴다)는 요구사항도
+Teleport의 `:to`를 트리거마다 동적으로(body 또는 그 dialog) 바꾸는 것만으로
+자연스럽게 해결됐다 - `<Teleport>`가 "위치를 옮겨야 하는 위젯"뿐 아니라
+"매번 다른 곳에 그려야 하는 다중 인스턴스 위젯"에도 그대로 확장됨을 확인한
+사례다(review-form/login-dialog는 항상 같은 곳, 이 위젯은 호출마다 다른 곳).
+
+**page-slide의 교훈을 처음부터 반영**: host에 원본과 같은 id를 주는 하위
+호환 선택이 전역 CSS와 충돌할 수 있다는 것을 이미 알고 있었으므로, 이
+위젯은 처음부터 host에 id를 주지 않고 어댑터가 클로저 변수로 싱글턴
+엘리먼트를 캐싱하도록 설계했다(태그명으로 조회) - 실측에서 별도 버그 없이
+한 번에 통과했다.
+
+**실대치 검증**: 실제 회원가입 폼(`/signup`)의 로그인ID 입력창에서 실제
+blur 검증 실패로 실제 팝오버가 실제 서버 i18n 메시지("Login ID may
+contain...")와 함께 왼쪽에 화살표까지 정확한 위치로 뜨는지, 실제 게시글의
+"지켜보기" 버튼에 실제 마우스를 올리면 실제 툴팁이 fade-in으로 뜨고
+마우스를 떼면 실제로 사라지는지까지 전부 실서버 화면에서 스크린샷으로
+확인했다.
+
+**하위 호환**: `yona.Common.js`도 하이브리드 어댑터로 다시 썼다 - 다섯 함수
+전부 커스텀 엘리먼트 존재 여부로 분기해 위임하고(태그명이 아니라 싱글턴
+엘리먼트를 클로저로 캐싱), 그렇지 않으면 원본 vanilla 구현이 처리한다.
+
 ## 진짜로 여기서 마감한 후보들
 
-열세 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
-어태치먼트/review-form/pagination/login-dialog/scroll-elevator/page-slide)을
-거치며 배운 것: "위젯 경계가 없다"는 판단은 거의 항상 검증 부족이었다 -
-Dialog/Dropdown/Typeahead/Attachments/review-form 다섯 다 처음엔 이
-목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다(pagination/
-login-dialog/scroll-elevator/page-slide는 처음부터 위젯 경계가 명확해 이
-목록에 있던 적이 없다). 아래는 그중 실제로 조사해도 위젯 경계 자체가
-없거나(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이 없는(Calendar/TomSelect)
+열네 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트/review-form/pagination/login-dialog/scroll-elevator/page-slide/
+popover)을 거치며 배운 것: "위젯 경계가 없다"는 판단은 거의 항상 검증
+부족이었다 - Dialog/Dropdown/Typeahead/Attachments/review-form 다섯 다
+처음엔 이 목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다
+(pagination/login-dialog/scroll-elevator/page-slide/popover는 처음부터
+위젯 경계가 명확해 이 목록에 있던 적이 없다). 아래는 그중 실제로 조사해도
+위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이 없는
+(Calendar/TomSelect)
 `yona.ui.*` 계열 경우만 남았다.
 
 **`common/`/`service/` 전체(77개 파일)를 대상으로 한 최신 전수조사**는
@@ -712,35 +772,36 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 열세 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+npm run build:elements  # 열네 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
                          # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
                          # <yona-typeahead>/<yona-attachments>/<yona-review-form>/
                          # <yona-pagination>/<yona-login-dialog>/<yona-scroll-elevator>/
-                         # <yona-page-slide> 네이티브 커스텀 엘리먼트로 한 번에
-                         # (dist-element/, es 모듈 포맷 - 엔트리 13개 + 위젯들이
+                         # <yona-page-slide>/<yona-popover> 네이티브 커스텀 엘리먼트로
+                         # 한 번에(dist-element/, es 모듈 포맷 - 엔트리 14개 + 위젯들이
                          # 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 13개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 14개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
 `yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`/
 `yona-review-form-element.js`/`yona-pagination-element.js`/
 `yona-login-dialog-element.js`/`yona-scroll-elevator-element.js`/
-`yona-page-slide-element.js` + 공유 청크 - 엔트리들이 상대 경로 `import`로
-참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고,
-템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
+`yona-page-slide-element.js`/`yona-popover-element.js` + 공유 청크 - 엔트리들이
+상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona
+저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
 `<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/
 `<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>`/`<yona-pagination>`/
-`<yona-login-dialog>`/`<yona-scroll-elevator>` - 단, `<yona-typeahead>`는 정적
-템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js` 어댑터가, `<yona-pagination>`도
-정적 템플릿에 쓰지 않고 `yona.Pagination.js` 어댑터가 기존
-`<div id="pagination">`을 그 자리에서 감싸며, `<yona-scroll-elevator>`/
-`<yona-page-slide>`도 정적 템플릿에 쓰지 않고 각각 `yona.ScrollElevator.js`/
-`yona.twoColumnMode.js` 어댑터가 직접 만들어 붙인다)와
+`<yona-login-dialog>`/`<yona-scroll-elevator>`/`<yona-popover>` - 단,
+`<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js`
+어댑터가, `<yona-pagination>`도 정적 템플릿에 쓰지 않고 `yona.Pagination.js`
+어댑터가 기존 `<div id="pagination">`을 그 자리에서 감싸며,
+`<yona-scroll-elevator>`/`<yona-page-slide>`/`<yona-popover>`도 정적 템플릿에
+쓰지 않고 각각 `yona.ScrollElevator.js`/`yona.twoColumnMode.js`/
+`yona.Common.js` 어댑터가 직접 만들거나(또는 이미 있으면 재사용해) 붙인다)와
 **`<script type="module">`**을 넣으면 됩니다(각 위젯
 구현의 세부 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고).
 커스텀 엘리먼트들은 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유
@@ -757,14 +818,17 @@ vendoring됐을 때만 정상 표시됩니다.
 npm run test
 ```
 
-다섯 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 +
-pagination 20개 = 73개 - 스위치/드롭다운/다이얼로그/타입어헤드/어태치먼트/
-review-form은 라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심이라 순수
-함수로 뽑을 로직이 마땅치 않아 전부 스모크 테스트로만 검증)를 esbuild로
-트랜스파일한 뒤 `node --test`로 한 번에 실행합니다. pagination은 이 다섯
-중 유일하게 컴포넌트보다 순수 함수(`pagination.ts`) 테스트를 먼저 작성한
-뒤 구현한 위젯이다(TDD) - 테스트를 먼저 쓰는 과정에서 원본 정규식의 실제
-동작(주석과 다름)을 미리 검증 케이스로 못박아 두게 됐다.
+여섯 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 +
+pagination 20개 + popover 8개 = 81개 - 스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트/review-form/login-dialog/scroll-elevator/page-slide는 라이트 DOM
+조작이나 DOM 생성/Teleport 자체가 핵심이라 순수 함수로 뽑을 로직이 마땅치
+않아 전부 스모크 테스트로만 검증)를 esbuild로 트랜스파일한 뒤 `node --test`로
+한 번에 실행합니다. pagination/popover는 컴포넌트보다 순수 함수
+(`pagination.ts`/`popover.ts`) 테스트를 먼저 작성한 뒤 구현한 위젯들이다
+(TDD) - pagination은 테스트를 먼저 쓰는 과정에서 원본 정규식의 실제 동작
+(주석과 다름)을 미리 검증 케이스로 못박아 뒀고, popover는 placement별 위치
+계산 공식(4가지 배치 + 인식 안 되는 값의 기본 분기)을 구현 전에 먼저
+고정했다.
 
 ## 스모크 테스트
 
@@ -871,8 +935,20 @@ review-form은 라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심�
   중 `hide()`하면 타이머가 취소돼 iframe이 끝내 안 채워지는지, (e) 이미 열린
   상태에서 재호출하면 이전 iframe이 즉시 제거되고 새 iframe이 새 src로
   채워지는지 확인.
+- `popover-element.mjs`: `dist-element/yona-popover-element.js`를 정적
+  HTML(`popover-element.html`, `<script type="module">` + `data-toggle`
+  트리거들 + 열린 `<dialog>` 안 트리거)에 로드해 (a) `showTooltip()`으로
+  실제 body 자식에 `.tooltip`이 생기고 `title`이 `data-original-title`로
+  옮겨지는지, (b) 같은 트리거 재호출은 중복 생성 안 하는지(idempotent),
+  (c) `hideTooltip()`이 트랜지션 종료(또는 폴백 500ms) 뒤에 제거되는지,
+  (d) `data-html="true"`면 실제 HTML로 렌더링되는지, (e) `showPopoverError()`는
+  트랜지션 대기 없이 즉시 생성/교체되고 `hidePopoverError()`는 즉시
+  제거되는지, (f) `initHoverPopovers(selector)`로 실제 마우스 호버/아웃
+  시 100ms 디바운스로 실제 팝오버가 표시/제거되는지, (g) 열린 `<dialog>`
+  안 트리거의 툴팁/팝오버는 body가 아니라 그 dialog의 자식으로 렌더링되는지
+  (top layer 대응) 확인.
 
-`*-element.mjs` 열세 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 열네 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/
