@@ -47,6 +47,25 @@ smoke-test/
   필요하다는 것뿐(최신 브라우저는 전부 지원) - 다만 **`file://`로 직접 열면 안 된다**(아래
   스모크 테스트 절 참고, module script의 상대 임포트가 file:// 오리진에서 CORS로 막힌다).
 
+## 중요: Shadow DOM 커스텀 엘리먼트와 <form> 참여(마크다운 에디터)
+
+옆에 나란히 놓고 비교하는 검증만으로는 안 드러나고, **실제 `<form>` 안에 넣고
+`FormData`를 찍어봐야만 드러나는 함정**을 하나 발견했다: `defineCustomElement`는
+컴포넌트 전체(내부 `<textarea>` 포함)를 Shadow DOM 안에 마운트한다. Shadow DOM 안의
+폼 필드는 표준 사양상 조상 `<form>`의 제출/`FormData`에 자동으로 포함되지 않는다 - 원본
+Custom Element(`editor/`)가 애초에 textarea를 **light DOM**에 일부러 뒀던 이유가
+바로 이것이다. Vue의 `defineCustomElement`는 아직 이 문제(form-associated custom
+element)를 위한 공식 지원이 없다(vuejs/core#12129, 2026-09 기준 미병합).
+
+`src/editor/element.ts`에서 표준 웹 컴포넌트 API(`ElementInternals`)로 직접 해결했다 -
+`defineCustomElement()`가 반환한 클래스를 상속해 `static formAssociated = true`를
+얹고, `attachInternals()`로 얻은 `ElementInternals`에 문서가 바뀔 때마다
+`setFormValue()`를 호출한다(`YonaMarkdownEditor.vue`가 `composed: true`로 내보내는
+`input` 이벤트를 호스트에서 받아 트리거). 이러면 이 커스텀 엘리먼트 자신이 `name` 속성
+그대로(`<input name="body">`와 동일하게) 조상 폼의 제출값에 포함된다. 회귀 방지용
+스모크 테스트: `smoke-test/editor-form-participation.mjs`(초기값/`setValue()`/실제
+타이핑 세 경로 전부 확인).
+
 ## toast 위젯
 
 `yona.ui.Toast.js`(+ `yona.Common.js`의 `notify()`)를 다시 작성했습니다. 원본은
@@ -131,6 +150,9 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
 - `editor-element.mjs`: `dist-element/yona-markdown-editor-vue-element.js`를 정적 HTML
   (`editor-element.html`, `<script type="module">`)에 로드해 shadowRoot
   attach/getValue()·setValue()/light-DOM textarea 동기화 확인.
+- `editor-form-participation.mjs`: 실제 `<form>` 안에 넣고 `FormData`로 초기값/
+  `setValue()`/실제 타이핑 세 경로 전부 제출값에 실리는지 확인(위 "Shadow DOM 커스텀
+  엘리먼트와 <form> 참여" 절 회귀 방지).
 - `help-panel.mjs`: 같은 개발 서버에서 도움말 패널 아코디언(초기 전부 닫힘/탭 클릭 시
   단일 오픈/재클릭 시 닫힘/다른 탭 클릭 시 자동 전환) 확인.
 - `help-element.mjs`: `dist-element/yona-help-markdown-element.js`를 정적 HTML

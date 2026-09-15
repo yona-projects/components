@@ -14,6 +14,15 @@
 //    `v-model`(modelValue prop + update:modelValue emit)이 관용적 양방향 바인딩 수단이므로
 //    이것을 1차 API로 삼고, 명령형 접근이 필요한 소비자를 위해 defineExpose로 getValue/
 //    setValue도 함께 내보낸다(아래 참고).
+//    실제로 <form> 안에 넣고 제출해보고서야 발견한 함정: defineCustomElement는 컴포넌트
+//    전체(이 textarea 포함)를 Shadow DOM 안에 마운트한다 - 원본이 폼 제출 참여를 위해
+//    textarea를 일부러 light DOM에 뒀던 것과 다르다. Shadow DOM 안의 폼 필드는 조상
+//    <form>의 FormData에 자동으로 실리지 않는다(표준 동작). Vue의 defineCustomElement는
+//    아직 form-associated custom element(ElementInternals)를 지원하지 않아(vuejs/core
+//    #12129, 아직 미병합) element.ts에서 표준 웹 컴포넌트 API로 직접 연결했다 - 이
+//    textarea의 input 이벤트를 composed:true로 내보내 Shadow 경계를 넘긴 뒤(아래
+//    syncTextareaFromEditor), 호스트 엘리먼트에서 그 이벤트를 받아 매번
+//    internals.setFormValue()를 호출한다.
 // 3) data-toggle="markdown-editor" 조상에서 render-url/mention-url을 closest()로 읽어오던
 //    원본 패턴은 Thymeleaf 프래그먼트와의 통합을 위한 우회였다 - Vue 컴포넌트는 이를 그냥
 //    명시적 prop(renderUrl/mentionUrl)으로 받는다.
@@ -83,9 +92,13 @@ function syncTextareaFromEditor(newValue: string): void {
   textarea.value = newValue;
   // yobi.ui.MarkdownEditor.js의 codemirror.on("change", ...)와 동일한 패턴 - 이 textarea를
   // 직접 구독하는 레거시(비-Vue) 핸들러가 있다면 값이 바뀌었다는 신호를 계속 받을 수 있도록
-  // 네이티브 이벤트도 함께 재발행한다(원본과 동일한 상호운용성 유지).
-  textarea.dispatchEvent(new Event("input", { bubbles: true }));
-  textarea.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+  // 네이티브 이벤트도 함께 재발행한다(원본과 동일한 상호운용성 유지). composed:true가 꼭
+  // 필요하다 - 이 textarea는 Shadow DOM 안에 있어서, composed 없이는 이벤트가 shadow 경계를
+  // 못 넘어 호스트 커스텀 엘리먼트(<yona-markdown-editor-vue>) 바깥에서는 전혀 안 보인다.
+  // element.ts가 바로 이 이벤트를 호스트에서 받아 ElementInternals.setFormValue()를
+  // 호출한다(실제 <form> 제출에 값이 실리게 하는 부분 - 아래 element.ts 주석 참고).
+  textarea.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+  textarea.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, composed: true }));
 }
 
 onMounted(() => {
