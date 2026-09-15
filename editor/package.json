@@ -2,7 +2,7 @@
   "name": "@yona-projects/markdown-editor",
   "version": "0.1.0",
   "private": true,
-  "description": "CodeMirror 6 기반 마크다운 에디터 Web Component (<yona-markdown-editor>). yona의 EasyMDE(CodeMirror5)+Tribute.js 조합을 대체.",
+  "description": "CodeMirror 6 기반 마크다운 에디터 Web Component (<yona-markdown-editor>). yona의 CodeMirror5 기반 마크다운 에디터+Tribute.js 조합을 대체.",
   "type": "module",
   "engines": {
     "node": ">=18"

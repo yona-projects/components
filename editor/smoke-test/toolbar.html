@@ -3,20 +3,6 @@
 <head>
 <meta charset="UTF-8" />
 <title>yona-markdown-editor 3단계 툴바 스모크 테스트</title>
-<script>
-  // 실제 yona 페이지는 전역 jQuery를 로드하지만, 이 격리된 정적 페이지는 최소 stub만 둔다
-  // (컴포넌트의 exposeLegacyEasyMdeShim이 여기 붙는 shim을 이 테스트에서 재사용해 문서 값을
-  // 읽고/쓴다).
-  window.jQuery = function (el) {
-    el.__data = el.__data || {};
-    return {
-      data: function (key, value) {
-        if (value === undefined) return el.__data[key];
-        el.__data[key] = value;
-      },
-    };
-  };
-</script>
 </head>
 <body>
 <yona-markdown-editor id="target" name="body"></yona-markdown-editor>

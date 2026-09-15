@@ -1,6 +1,6 @@
 // yona-markdown-editor 3단계(툴바) - 버튼 UI + CSS 테마 계약.
 //
-// 구성은 옛 yobi.ui.MarkdownEditor.js `_toolbar()`(EasyMDE 재스킨판, 2026-09-11 기준
+// 구성은 옛 yobi.ui.MarkdownEditor.js `_toolbar()`(2026-09-11 기준
 // git show f65747d1f~1:.../yobi.ui.MarkdownEditor.js로 확인)와 동일하다:
 //   Bold/Italic | Heading("H")/Quote | Checklist/Generic list/Numbered list("1.") |
 //   Link/Image | Preview
@@ -16,7 +16,7 @@
 //   ::part("editor")             - CM6 마운트 지점을 감싸는 wrapper
 //   ::part("preview")            - 미리보기 패널(4단계 추가)
 // CSS 커스텀 프로퍼티(--yona-md-*)로 색상/크기/폰트를 노출하되, yobi.css의 옛 재스킨
-// (.EasyMDEContainer .editor-toolbar 등, yobi.css 12128~12181행)과 시각적으로 동일한 값을
+// (.editor-toolbar 등, yobi.css 12128~12181행)과 시각적으로 동일한 값을
 // 컴포넌트 기본값으로 내장한다 - yobi.css가 ::part() 오버라이드를 전혀 안 써도 지금과
 // 똑같아 보이는 게 1차 목표(동치성).
 //
@@ -169,7 +169,7 @@ export function createToolbar(view: EditorView, options: ToolbarOptions): HTMLDi
 }
 
 /**
- * Shadow DOM 안에 삽입할 기본 스타일. yobi.css의 옛 EasyMDE 재스킨(12128~12181행)과
+ * Shadow DOM 안에 삽입할 기본 스타일. yobi.css의 옛 재스킨(12128~12181행)과
  * 시각적으로 동일한 값을 컴포넌트 기본값으로 내장한다 - yobi.css는 필요시 이 CSS 커스텀
  * 프로퍼티만 오버라이드하면 된다.
  */
@@ -187,7 +187,7 @@ export const TOOLBAR_STYLES = `
   --yona-md-font-family: Consolas, Menlo, Monaco, monospace;
   --yona-md-font-size: 13px;
   --yona-md-icon-font-family: 'yobicon';
-  /* 옛 EasyMDE 초기화 옵션의 "minHeight": "300px"(yobi.ui.MarkdownEditor.js) 동치 - CM6에는
+  /* 옛 초기화 옵션의 "minHeight": "300px"(yobi.ui.MarkdownEditor.js) 동치 - CM6에는
      그런 옵션이 없어 mount된 .cm-editor에 직접 min-height를 준다. */
   --yona-md-min-height: 300px;
 

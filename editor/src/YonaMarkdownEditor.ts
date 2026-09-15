@@ -19,7 +19,7 @@
 //
 // 4단계에서 추가한 것: 미리보기 서버 렌더링 재연동(src/preview.ts). preview 툴바
 // 버튼을 누르면 CM6 에디터 뷰(part="editor")와 미리보기 패널(part="preview")을 서로
-// hidden 속성으로 토글한다(EasyMDE 시절과 동일한 단일 뷰 토글 - side-by-side 아님). 켜지는
+// hidden 속성으로 토글한다(단일 뷰 토글 - side-by-side 아님). 켜지는
 // 시점과, 켜진 채로 문서가 바뀔 때마다 PreviewController.scheduleRender()를 호출한다(300ms
 // 디바운스 + 요청 순번 레이스가드는 preview.ts 참고).
 //
@@ -32,16 +32,21 @@
 // 트리거조차 등록하지 않는다. `yobi.Mention.js`는 이 단계에서 완전히 삭제됐다(로직은
 // mention.ts로 흡수).
 //
-// 호환 shim(P3-46 8번 항목 2단계, 사용자 결정 확정 2026-09-11): yobi.Attachments.js/
-// yona.CommentAttachmentsUpdate.js는 첨부파일 카드 클릭으로 본문에 링크를 삽입할 때
-// $textarea.data("easymde")로 얻은 EasyMDE 인스턴스의 .value(newValue)를 호출해 raw
-// textarea.val() 조작 결과를 CodeMirror 쪽 버퍼에도 강제로 반영한다(그렇지 않으면 다음 편집
-// 시 CM이 자신의 예전 버퍼로 textarea를 덮어써 방금 넣은 링크가 사라진다 - P3-50에서 이미 한번
-// 고친 데이터 손실 버그). yobi.ui.MarkdownEditor.js를 걷어내면서 이 두 파일이 계속 그대로
-// 동작하도록, 같은 jQuery data 키("easymde")에 최소 shim({ value(newValue?) })을 노출한다.
-// (2단계 당시엔 yobi.Mention.js도 이 키를 읽어(easyMDE.codemirror로 Tribute attach 대상을 찾음)
-// codemirror 프로퍼티가 이 shim에 없어 멘션이 5단계까지 일시적으로 먹통이었다 - 5단계에서
-// yobi.Mention.js 자체가 삭제되고 멘션이 CM6 네이티브(mention.ts)로 재구현되면서 해소됐다.)
+// 6단계(jQuery 호환 shim 제거, yona 쪽 P3-70 jQuery 전면 제거 캠페인과 연계): 이전엔
+// yobi.Attachments.js/yona.CommentAttachmentsUpdate.js가 첨부파일 카드 클릭으로 본문에
+// 링크를 삽입할 때 $textarea.data(...) shim({ value(newValue?) })을 통해 raw
+// textarea.val() 조작 결과를 CodeMirror 쪽 버퍼에도 강제로 반영했다(안 그러면 다음 편집 시
+// CM이 자신의 예전 버퍼로 textarea를 덮어써 방금 넣은 링크가 사라진다 - P3-50에서 이미
+// 한번 고친 데이터 손실 버그, 이 컴포넌트의 이전 버전이 전용 메서드로 그 shim을
+// 노출했었다 - 지금은 삭제됐다).
+//
+// yona 쪽 jQuery 코어가 이제 완전히 제거돼(P3-70) 이 컴포넌트가 그 존재를 가정할 수 없게
+// 됐고, 애초에 jQuery의 `.data()` 정적 접근자 인디렉션 자체가 불필요했다 - 이 커스텀
+// 엘리먼트는 어차피 실제 DOM 엘리먼트 참조이므로, 소비자 코드가 jQuery 없이도
+// `textarea.closest('yona-markdown-editor')`로 직접 찾아 프로퍼티에 접근할 수 있다.
+// 그래서 jQuery data 키 shim을 완전히 걷어내고, 그 자리에 이 클래스 자신의 공개
+// `value` getter/setter(아래 참고)를 노출한다 - 소비자 쪽(yona.Attachments.js/
+// yona.CommentAttachmentsUpdate.js)도 이 네이티브 프로퍼티를 직접 읽고 쓰도록 갱신됐다.
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -50,20 +55,6 @@ import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language"
 import { createToolbar, TOOLBAR_STYLES } from "./toolbar.js";
 import { PreviewController } from "./preview.js";
 import { createMentionExtension, MENTION_STYLES } from "./mention.js";
-
-interface LegacyEasyMdeShim {
-  value(newValue?: string): string | undefined;
-}
-
-interface JQueryLike {
-  (target: unknown): { data(key: string, value: unknown): void };
-}
-
-declare global {
-  interface Window {
-    jQuery?: JQueryLike;
-  }
-}
 
 // 여러 <yona-markdown-editor> 인스턴스가 한 페이지에 동시에 존재할 수 있다(예: issue/view의
 // 새 댓글 폼 + 기존 댓글 수정 폼들 - 2단계 깊이 중첩). 기존에는 서버(Thymeleaf)가
@@ -134,8 +125,8 @@ export class YonaMarkdownEditor extends HTMLElement {
     // 최초 로드 값으로 되돌리므로, 아래 reset 리스너는 CM6 쪽만 같은 값으로 맞춰주면 된다.
     textarea.defaultValue = initialValue;
     // Shadow DOM 안의 CM6가 실제 편집 UI를 담당하므로, light DOM textarea 자체는 화면에
-    // 보이지 않아도 된다(기존 EasyMDE가 원본 textarea를 display:none으로 숨기던 것과 동일한
-    // 역할 분담) - 다만 폼 제출/멘션 셀렉터/임시저장 등은 이 textarea의 DOM 존재와 값에 계속
+    // 보이지 않아도 된다 - 다만 폼 제출/멘션 셀렉터/임시저장 등은 이 textarea의
+    // DOM 존재와 값에 계속
     // 의존하므로 DOM에서 제거하지 않고 숨기기만 한다.
     textarea.style.display = "none";
     this.appendChild(textarea);
@@ -235,37 +226,27 @@ export class YonaMarkdownEditor extends HTMLElement {
       onPreviewToggle: (active) => this.handlePreviewToggle(active),
     });
     shadow.insertBefore(toolbar, editorWrapper);
-
-    this.exposeLegacyEasyMdeShim();
   }
 
   /**
-   * yobi.Attachments.js/yona.CommentAttachmentsUpdate.js 호환용(위 파일 상단 주석 참고).
-   * jQuery가 로드돼 있을 때만 등록한다(이 컴포넌트 자체는 jQuery에 의존하지 않지만, yona의
-   * 모든 페이지는 이미 전역 jQuery를 로드해두므로 실제로는 항상 등록된다).
+   * 6단계: 이전 jQuery `.data(...)` shim이 노출하던 것과 정확히 동일한 계약(get: 현재
+   * CM6 문서 전체 문자열, set: 문서 전체를 새 문자열로 치환)을 이 클래스 자신의
+   * 공개 프로퍼티로 노출한다. 소비자(yona.Attachments.js/yona.CommentAttachmentsUpdate.js)는
+   * `textarea.closest('yona-markdown-editor')`로 이 엘리먼트를 직접 찾아
+   * `.value`/`.value = newValue`로 접근한다 - jQuery도, 데이터 키 인디렉션도 필요 없다.
+   * view가 아직 없으면(연결 전) get은 빈 문자열, set은 조용히 무시한다.
    */
-  private exposeLegacyEasyMdeShim(): void {
-    const jq = window.jQuery;
-    if (!jq || !this.textarea) {
+  get value(): string {
+    return this.view ? this.view.state.doc.toString() : "";
+  }
+
+  set value(newValue: string) {
+    if (!this.view) {
       return;
     }
-
-    const shim: LegacyEasyMdeShim = {
-      value: (newValue?: string) => {
-        if (!this.view) {
-          return undefined;
-        }
-        if (newValue === undefined) {
-          return this.view.state.doc.toString();
-        }
-        this.view.dispatch({
-          changes: { from: 0, to: this.view.state.doc.length, insert: newValue },
-        });
-        return undefined;
-      },
-    };
-
-    jq(this.textarea).data("easymde", shim);
+    this.view.dispatch({
+      changes: { from: 0, to: this.view.state.doc.length, insert: newValue },
+    });
   }
 
   disconnectedCallback(): void {

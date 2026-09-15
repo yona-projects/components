@@ -23,10 +23,11 @@ page.on("pageerror", (err) => consoleErrors.push(String(err)));
 await page.goto(pageUrl);
 
 async function runCase(initialText, buttonPart) {
+  // 6단계: jQuery data(...) shim이 걷어내지고 컴포넌트 자신의 .value
+  // getter/setter로 대체됐다 - 이 스모크 테스트도 그 네이티브 프로퍼티를 직접 쓴다.
   await page.evaluate((initialText) => {
     const el = document.querySelector("yona-markdown-editor");
-    const textarea = el.querySelector("textarea");
-    window.jQuery(textarea).data("easymde").value(initialText);
+    el.value = initialText;
   }, initialText);
 
   const cmContent = page.locator("yona-markdown-editor .cm-content");
@@ -34,10 +35,7 @@ async function runCase(initialText, buttonPart) {
   await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
   await page.locator(`yona-markdown-editor [part~="${buttonPart}"]`).click();
 
-  return page.evaluate(() => {
-    const el = document.querySelector("yona-markdown-editor");
-    return window.jQuery(el.querySelector("textarea")).data("easymde").value();
-  });
+  return page.evaluate(() => document.querySelector("yona-markdown-editor").value);
 }
 
 const cases = [

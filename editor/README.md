@@ -1,7 +1,7 @@
 # yona-markdown-editor
 
 CodeMirror 6 기반 마크다운 에디터 Web Component(`<yona-markdown-editor>`). yona의
-EasyMDE(CodeMirror5)+Tribute.js 조합을 대체합니다.
+CodeMirror5 기반 마크다운 에디터+Tribute.js 조합을 대체합니다.
 
 > **이 저장소는 yona 본체(Gradle/CI)와 완전히 무관합니다.**
 > 컴포넌트를 수정할 때마다 **여기서 로컬로 빌드**한 뒤, **산출물(`dist/yona-markdown-editor.min.js`)만

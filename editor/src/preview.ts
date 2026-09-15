@@ -2,7 +2,7 @@
 //
 // 옛 yobi.ui.MarkdownEditor.js의 _previewRenderer()(2026-09-11 조사, `git show
 // 03b5111a3:src/main/resources/static/javascripts/common/yobi.ui.MarkdownEditor.js`로 확인한
-// EasyMDE 시절 구현)를 CM6/네이티브 fetch 기반으로 그대로 이식한다:
+// 구현)를 CM6/네이티브 fetch 기반으로 그대로 이식한다:
 //   - 300ms 디바운스(연타/연속 타이핑 시 렌더 요청을 마지막 한 번으로 합친다)
 //   - 요청 순번 비교(레이스 가드) - 오래된 응답이 최신 내용을 덮어쓰지 않도록 fetch를 실제로
 //     보내는 시점에 순번을 매기고, 응답이 왔을 때 그 순번이 여전히 최신인지 확인한다.
