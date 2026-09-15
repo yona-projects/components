@@ -1,8 +1,8 @@
 {
-  "name": "@yona-projects/markdown-editor-vue",
+  "name": "@yona-projects/vue-widgets",
   "version": "0.1.0",
   "private": true,
-  "description": "CodeMirror 6 기반 마크다운 에디터 Vue 3(Composition API + TypeScript) SFC. components/editor의 네이티브 Web Component 버전을 Vue 컴포넌트로 다시 작성한 것.",
+  "description": "yona 위젯들을 Vue 3 Composition API + TypeScript SFC로 다시 작성한 파일럿 모음(마크다운 에디터, 마크다운 도움말 패널). editor2/help-markdown 두 개의 독립 npm 프로젝트였던 것을 하나로 합쳤다 - README 참고.",
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -10,8 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
-    "build:demo": "vite build --config vite.demo.config.ts",
-    "build:element": "vite build --config vite.element.config.ts",
+    "build:elements": "VUE_WIDGET_TARGET=editor vite build --config vite.element.config.ts && VUE_WIDGET_TARGET=help vite build --config vite.element.config.ts",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "node build-test.mjs && node --test dist-test/*.test.mjs"
   },
