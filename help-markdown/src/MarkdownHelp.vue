@@ -169,17 +169,24 @@ function onNavClick(key: string): void {
   margin: 0;
   background-color: transparent;
   border: none;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
-/* yona.css의 .markdown-wrap(11331행대) 타이포그래피 - YonaMarkdownEditor.vue의
-   preview-wrap과 동일한 원본 규칙(구문강조 색상 제외 - 이 패널은 hljs를 쓰지 않는다). */
+/* yona.css의 .markdown-wrap(11378~11606행) 그대로 이식 - 이전 버전은 YonaMarkdownEditor.vue의
+   preview-wrap(별개의 CSS 블록)을 어림잡아 옮겨 적어서 실제로는 값이 다른 곳이 여럿 있었다
+   (예: table margin이 15px 15px가 아니라 5px 0으로 잘못됨 - 실사용 화면에서 원본과 나란히
+   놓고서야 발견됨). 이번엔 yona.css 원본 블록을 줄 단위로 그대로 옮기고 v-html로 주입되는
+   콘텐츠 셀렉터에만 :deep()을 붙였다 - 값 자체는 전부 원본과 동일해야 한다. */
 .markdown-wrap {
-  padding: 0 10px;
   font-size: 1.1em;
+  clear: both;
+  overflow: auto;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji",
     "Segoe UI Emoji", "Segoe UI Symbol";
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  font-feature-settings: "kern" 1;
+  font-kerning: normal;
+  padding: 15px 20px !important;
   word-wrap: break-word;
 }
 .markdown-wrap :deep(> :first-child) {
@@ -188,28 +195,159 @@ function onNavClick(key: string): void {
 .markdown-wrap :deep(> :last-child) {
   margin-bottom: 0 !important;
 }
+.markdown-wrap :deep(ul),
+.markdown-wrap :deep(ol) {
+  padding: 0 0 5px 2.5em;
+  font-weight: normal;
+  margin-left: 0;
+}
+.markdown-wrap :deep(li) {
+  margin-bottom: 5px;
+  line-height: 1.6em;
+}
+.markdown-wrap :deep(li > ul) {
+  margin-bottom: 0;
+  padding: 5px 0 0 2.5em;
+}
+.markdown-wrap :deep(li > ul :last-of-type) {
+  padding-bottom: 0;
+}
+.markdown-wrap :deep(li > ul pre) {
+  padding-bottom: 10px !important;
+}
+.markdown-wrap :deep(li > p) {
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+.markdown-wrap :deep(a) {
+  color: #4183c4;
+  text-decoration: none;
+}
+.markdown-wrap :deep(a:hover) {
+  color: #4183c4;
+  text-decoration: underline;
+}
+.markdown-wrap :deep(a:hover span) {
+  text-decoration: none;
+}
+.markdown-wrap :deep(a:active) {
+  color: #4183c4;
+  text-decoration: none;
+}
 .markdown-wrap :deep(h1),
 .markdown-wrap :deep(h2),
 .markdown-wrap :deep(h3) {
-  line-height: 1.4;
-  margin: 0.6em 0;
+  line-height: 40px;
+  margin-bottom: 16px;
+}
+.markdown-wrap :deep(h1) {
+  font-size: 2em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #eee;
+  width: 95%;
+  font-weight: 600;
+}
+.markdown-wrap :deep(h1) .head-anchor,
+.markdown-wrap :deep(h2) .head-anchor,
+.markdown-wrap :deep(h3) .head-anchor,
+.markdown-wrap :deep(h4) .head-anchor,
+.markdown-wrap :deep(h5) .head-anchor {
+  margin-left: 3px;
+  opacity: 0;
+}
+.markdown-wrap :deep(h1:hover) .head-anchor,
+.markdown-wrap :deep(h2:hover) .head-anchor,
+.markdown-wrap :deep(h3:hover) .head-anchor,
+.markdown-wrap :deep(h4:hover) .head-anchor,
+.markdown-wrap :deep(h5:hover) .head-anchor {
+  opacity: 1;
+}
+.markdown-wrap :deep(h2) {
+  line-height: 1.25;
+  font-size: 1.5em;
+  width: 95%;
+  padding: 0 0 0.3em 0;
+  border-bottom: 1px solid #eaecef;
+}
+.markdown-wrap :deep(h3) {
+  margin: 1em 0 5px;
+  font-size: 1.25em;
+  padding: 0;
+}
+.markdown-wrap :deep(h4) {
+  font-size: 1.25em;
+  margin-top: 1.2em;
+  padding: 0;
+}
+.markdown-wrap :deep(h5) {
+  font-size: 1em;
+  margin-top: 20px;
+}
+.markdown-wrap :deep(hr) {
+  height: 1px;
+  margin: 10px 0;
+  border: 0;
+  color: #ccc;
+  background-color: #ccc;
 }
 .markdown-wrap :deep(p) {
   margin: 0 0 12px 0;
   line-height: 1.6em;
 }
-.markdown-wrap :deep(blockquote) {
-  border-left: 4px solid #ddd;
-  padding: 0 15px;
-  color: #777;
-  margin: 0;
+.markdown-wrap :deep(blockquote p) {
+  font-size: 0.9em;
+  font-weight: normal;
 }
 .markdown-wrap :deep(code) {
-  padding: 2px 5px;
+  padding: 5px 5px 2px 5px;
   border: 1px solid #ddd;
   border-radius: 3px;
   font-family: Consolas, "Menlo", "Monaco", "Ubuntu Mono", "source-code-pro", monospace;
   font-size: 13px;
+}
+.markdown-wrap :deep(code .title) {
+  font-size: inherit;
+}
+.markdown-wrap :deep(blockquote) {
+  border-left: 4px solid #ddd;
+  padding: 0 15px;
+  color: #777;
+}
+.markdown-wrap :deep(li > img) {
+  max-width: 80%;
+}
+.markdown-wrap :deep(p > input[type="checkbox"]) {
+  vertical-align: text-top;
+}
+.markdown-wrap :deep(li > input[type="checkbox"]) {
+  vertical-align: top;
+}
+.markdown-wrap :deep(img) {
+  max-width: 100%;
+  margin: 10px 0;
+  padding: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  max-height: 600px;
+}
+.markdown-wrap > :deep(ul) {
+  line-height: 20px;
+  list-style: disc;
+  margin-bottom: 16px;
+}
+.markdown-wrap :deep(ul ul),
+.markdown-wrap :deep(ol ul) {
+  list-style: circle;
+}
+.markdown-wrap :deep(ul ul ul),
+.markdown-wrap :deep(ol ul ul),
+.markdown-wrap :deep(ol ol ul),
+.markdown-wrap :deep(ul ol ul) {
+  list-style: square;
+}
+.markdown-wrap :deep(ol) {
+  line-height: 1.6em;
+  list-style: decimal;
 }
 .markdown-wrap :deep(pre) {
   font-size: 1em;
@@ -226,22 +364,17 @@ function onNavClick(key: string): void {
 }
 .markdown-wrap :deep(table) {
   border-collapse: collapse;
-  margin: 5px 0;
+  margin: 15px 15px;
 }
-.markdown-wrap :deep(table th),
+.markdown-wrap :deep(table th) {
+  padding: 5px;
+  border: 1px solid #dcddde;
+  background-color: #f7f7f7;
+  min-width: 45px;
+}
 .markdown-wrap :deep(table td) {
   padding: 5px;
   border: 1px solid #dcddde;
-}
-.markdown-wrap :deep(table th) {
-  background-color: #f7f7f7;
-}
-.markdown-wrap :deep(img) {
-  max-width: 100%;
-}
-.markdown-wrap :deep(ul),
-.markdown-wrap :deep(ol) {
-  padding-left: 1.5em;
-  margin: 0 0 12px 0;
+  word-break: break-all;
 }
 </style>
