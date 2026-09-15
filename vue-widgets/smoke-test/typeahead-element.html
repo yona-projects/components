@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title></head>
+<body>
+<yona-typeahead id="target">
+  <input type="text" id="tag-input" />
+</yona-typeahead>
+<script type="module">
+  import "../dist-element/yona-typeahead-element.js";
+  customElements.whenDefined("yona-typeahead").then(() => {
+    document.querySelector("yona-typeahead").configure({
+      source: ["bug", "feature", "documentation", "duplicate", "wontfix"],
+      minLength: 0,
+      limit: 10,
+    });
+  });
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
   "description": "vue-widgets의 위젯별 스모크 테스트를 합친 것 - 툴바/아코디언/토스트 동작 + 각 위젯의 defineCustomElement 빌드 검증용 Playwright 스크립트. 정식 회귀 스위트 아님.",
   "type": "module",
   "scripts": {
-    "test": "node editor-toolbar.mjs && node editor-element.mjs && node editor-form-participation.mjs && node editor-attachment-sync.mjs && node help-panel.mjs && node help-element.mjs && node toast.mjs && node toast-element.mjs && node switch-element.mjs && node dropdown-element.mjs && node dialog-element.mjs"
+    "test": "node editor-toolbar.mjs && node editor-element.mjs && node editor-form-participation.mjs && node editor-attachment-sync.mjs && node help-panel.mjs && node help-element.mjs && node toast.mjs && node toast-element.mjs && node switch-element.mjs && node dropdown-element.mjs && node dialog-element.mjs && node typeahead-element.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

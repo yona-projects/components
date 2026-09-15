@@ -21,18 +21,21 @@ src/
                     <slot>로 라이트 DOM을 투과하는 얇은 행동 레이어)
   dialog/         - 전역 alert/confirm 모달(YonaDialog.vue, element.ts - 배경/메시지/
                     닫기 버튼은 Shadow DOM, 버튼만 명령형으로 라이트 DOM에 생성)
+  typeahead/      - 자동완성 입력(YonaTypeahead.vue, element.ts - 메뉴는 Shadow DOM,
+                    <input>만 <slot>으로 라이트 DOM 투과, :host{position:relative}로
+                    위치 지정)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
-                    마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그는 시각
-                    템플릿이 없거나(드롭다운) 부트스트랩 버튼 디자인 시스템이
-                    필요해(다이얼로그) 이 데모에는 포함하지 않았다(스모크
-                    테스트로만 검증)
+                    마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드는
+                    시각 템플릿이 없거나(드롭다운) 부트스트랩 버튼 디자인 시스템이
+                    필요하거나(다이얼로그) 정적 마크업으로 데모하기 애매해서(타입어헤드,
+                    JS로 감싸야 함) 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts  - 위젯별 순수 함수 단위 테스트
   (파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
-  dialog-element.mjs
+  dialog-element.mjs, typeahead-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -251,9 +254,47 @@ shadowRoot 상태를 물려받지 않음)까지 전부 실서버 화면에서 �
 `show`/`hide`로 위임하고(원본의 `cloneNode` 관례 그대로 유지), 그렇지 않으면
 원본 vanilla 구현이 처리한다.
 
+## typeahead 위젯
+
+`yona.ui.Typeahead.js`(Bootstrap bootstrap-typeahead.js에 의존하지 않는 순수
+커스텀 자동완성 구현)를 다시 썼다. 프로젝트 태깅, 멤버 로그인ID 검색, 이슈
+라벨 카테고리 자동완성 등 5개의 서로 다른 호출부(`yona.project.Home.js`/
+`yona.site.MassMail.js`/`yona.project.Member.js`/`yona.issue.LabelEditor.js`/
+`yona.organization.Member.js`)가 쓴다.
+
+**다른 위젯들과 또 다른 종류의 블로커**: 이 위젯은 정적 Thymeleaf 템플릿이
+아니라 **이미 존재하는 `<input>`에 생성자가 직접 인스턴스화**하는 방식이다
+(`new yona.ui.Typeahead(existingInput, options)`) - 그래서 애초에 "교체할
+고정된 마크업"이 없다. 탈출구: 생성자(어댑터) 자신이 그 자리에서 대상
+input을 `<yona-typeahead>`로 감싸므로(idempotent - 이미 감싸져 있으면
+재사용) 5개 호출부 코드는 전혀 바꾸지 않는다.
+
+**메뉴는 dropdown/dialog와 달리 Shadow DOM에 전부 그린다**: dropdown의
+`<li>`(담당자 아바타 등 호출부마다 다른 마크업)나 dialog의 버튼(호출부가
+임의의 전역 CSS 클래스 지정)과 달리, 이 위젯의 메뉴는 **항상 같은 모양**이다
+(문자열 배열 -> `<li><a>텍스트</a></li>`, 하이라이트는 `<strong>`뿐) - 열린
+계약이 아니라 닫힌 계약이라 Vue가 선언적으로 그려도 안전하다(bootstrap.css의
+`.dropdown-menu` CSS를 그대로 이식). `<input>` 자신만 `<slot>`으로 라이트
+DOM에 남긴다(포커스/타이핑 상태 유지, 다른 코드의 참조 보존).
+
+**위치 지정 단순화**: 원본은 메뉴가 입력창의 형제 엘리먼트였기 때문에
+`offsetTop`/`offsetLeft`를 JS로 직접 계산해야 했다. 이 컴포넌트는 호스트
+자신을 `:host { position: relative; }`로 만들어(스위치에서 검증한 `:host`
+scoped 버그 회피 패턴 재사용) 메뉴를 순수 CSS(`top: 100%`)만으로 입력창
+바로 아래에 놓는다 - 의도적인 개선이며, 실제 화면에서 픽셀 단위로 시각
+검증했다.
+
+**실대치 검증**: `site/layout.html`에 위젯 스크립트를 추가하고 실제
+이슈 라벨 관리 화면(`issue/labelsform`)에서 검증했다 - (a) 카테고리
+입력창이 실제로 `<yona-typeahead>`에 감싸지는지, (b) 새 카테고리("UrgentCat")를
+실제로 생성(확인 다이얼로그 포함 - 원본 vanilla Dialog 그대로)한 뒤, (c)
+카테고리 입력창에 "Urg"를 타이핑하면 서버가 실제로 렌더링한 `vars.categories`
+기반으로 진짜 자동완성("UrgentCat")이 뜨는지, (d) 클릭 선택 시 입력값이
+정확히 반영되는지까지 전부 실서버 화면에서 확인했다.
+
 ## 여기서 마감한 나머지 후보들
 
-이 여섯 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그) 이후
+이 일곱 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드) 이후
 `yona.Attachments.js`+`yona.Files.js`/`yona.CodeCommentBox.js`도 실제 마크업·
 연동 구조까지 조사했다.
 전부 "Vue SFC로 깔끔하게 바꿀 수 있는 자기완결적 위젯"은 아니었다 - 위젯 후보를
@@ -282,10 +323,8 @@ shadowRoot 상태를 물려받지 않음)까지 전부 실서버 화면에서 �
 `yona.ui.Dialog.js`/`yona.ui.Dropdown.js`/`yona.ui.Typeahead.js`는 처음엔 이 목록에
 넣었었다(전역 버튼 CSS 클래스/전역 dropdown 델리게이트/정적 템플릿 부재 문제) - 하지만
 셋 다 스위치/에디터에서 이미 검증한 "열린 부분은 라이트 DOM에 남기고 Vue는 얇은 행동
-레이어만 맡는다"는 탈출구로 풀리는 문제였다. `yona.ui.Dropdown.js`/`yona.ui.Dialog.js`는
-위 각 위젯 절에서 실제로 구현·실대치 검증까지 마쳤다 - Typeahead는 같은 탈출구(생성자
-자신이 기존 input을 감싸는 커스텀 엘리먼트를 만들어 끼워넣는 방식)가 적용된다는 것만
-확인했고 아직 구현하지 않았다(다음 후보).
+레이어만 맡는다"는 탈출구로 풀리는 문제였다. 셋 다 위 각 위젯 절에서 실제로 구현·
+실대치 검증까지 마쳤다 - 이 시점에서 확인 가능한 `yona.ui.*` 위젯 후보는 모두 소진했다.
 
 ## 요구 사항
 
@@ -306,23 +345,25 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 여섯 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
-                         # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>
-                         # 네이티브 커스텀 엘리먼트로 한 번에(dist-element/, es 모듈
-                         # 포맷 - 엔트리 6개 + 위젯들이 공유하는 청크 - 청크 파일명은
-                         # 빌드마다 바뀔 수 있다)
+npm run build:elements  # 일곱 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+                         # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
+                         # <yona-typeahead> 네이티브 커스텀 엘리먼트로 한 번에
+                         # (dist-element/, es 모듈 포맷 - 엔트리 7개 + 위젯들이 공유하는
+                         # 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 6개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 7개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
-`yona-dialog-element.js` + 공유 청크 - 엔트리들이 상대 경로 `import`로 참조하므로
-같은 디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고, 템플릿에 해당
-태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/`<yona-toast>`/
-`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`)와
+`yona-dialog-element.js`/`yona-typeahead-element.js` + 공유 청크 - 엔트리들이
+상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona
+저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/
+`<yona-help-markdown>`/`<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/
+`<yona-dialog>`/`<yona-typeahead>` - 단, `<yona-typeahead>`는 정적 템플릿에
+직접 쓰지 않고 `yona.ui.Typeahead.js` 어댑터가 생성한다)와
 **`<script type="module">`**을 넣으면 됩니다(각 위젯 구현의 세부
 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고). 커스텀 엘리먼트들은
 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유 청크만 같이 복사하면 됩니다.
@@ -384,8 +425,14 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
   클래스/라벨로 버튼을 만드는지, (d) 버튼 클릭 시 `fOnClickButton` 콜백이 정확한
   `nButtonIndex`로 호출되고 `false` 반환 시 안 닫히는지, (e) X 닫기 버튼/배경
   클릭으로도 닫히는지 확인.
+- `typeahead-element.mjs`: `dist-element/yona-typeahead-element.js`를 정적 HTML
+  (`typeahead-element.html`, `<script type="module">` + `configure()` 호출)에
+  로드해 (a) 입력 필드가 document 레벨에서 여전히 검색 가능한지, (b) 타이핑 시
+  필터링/정렬/하이라이트가 정확한지, (c) 화살표 키로 활성 항목이 이동하는지,
+  (d) Enter/클릭으로 선택 시 입력값이 반영되고 실제 `change` 이벤트가 발생하는지,
+  (e) ESC로 메뉴가 닫히는지 확인.
 
-`*-element.mjs` 여섯 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 일곱 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/
