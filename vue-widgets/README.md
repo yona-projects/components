@@ -498,9 +498,16 @@ rxDigit은 통과하지만 isNumeric은 실패하는 값이라야 실제로 에�
 판단은 거의 항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments/
 review-form 다섯 다 처음엔 이 목록에 있었지만 전부 실제로 구현·실대치
 검증까지 마쳤다(pagination은 처음부터 위젯 경계가 명확해 이 목록에 있던
-적이 없다). 아래는 실제로 조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는
-아예 죽은 코드)
-자체 템플릿이 없는(Calendar/TomSelect) 경우만 남았다.
+적이 없다). 아래는 그중 실제로 조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는
+아예 죽은 코드) 자체 템플릿이 없는(Calendar/TomSelect) `yona.ui.*` 계열
+경우만 남았다.
+
+**`common/`/`service/` 전체(77개 파일)를 대상으로 한 최신 전수조사**는
+[docs/widget-candidates.md](docs/widget-candidates.md)에 별도로 정리했다 -
+LoginDialog/ScrollElevator/Tooltip·Popover 시스템/Label 관리 패널/PageSlide
+오버레이 등 아직 착수하지 않은 후보와 우선순위, 그리고 신규 위젯이 아니라
+"이미 이식된 위젯을 확장/재사용해야 하는" 통합 기회까지 담겨 있다. 아래
+목록은 그 문서가 나오기 전, `yona.ui.*` 네임스페이스만 좁게 조사했던 결과다.
 
 - **`yona.ui.Tabs.js`**: 유일한 동작인 `_restoreTab()`이 legacy 버그(`"toggle" ==
   "tab"`가 항상 false로 평가됨, v1.6부터 그대로)로 처음부터 완전한 no-op이다 -
