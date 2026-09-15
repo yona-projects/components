@@ -101,9 +101,16 @@ defineExpose({ push, clear });
   left: 420px;
 }
 .btn-dismiss button {
+  /* 원본 마크업의 class="btn-transparent"(yona.css 91행/11034행, 전역)를 재현한다 -
+     이걸 빠뜨리면 버튼이 브라우저 기본 버튼 크롬(흰 박스+테두리)으로 보인다(실제
+     yona 화면에 대치해서 띄워보고 발견 - 격리 데모/스모크 테스트만으로는 안 드러났다). */
+  background: transparent;
+  border: 0;
+  outline: none;
   color: black;
   font-size: 25px;
   font-weight: bold;
+  cursor: pointer;
 }
 .v {
   display: inline-block;
