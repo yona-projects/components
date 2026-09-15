@@ -26,17 +26,22 @@ src/
                     위치 지정)
   attachments/    - 첨부파일 업로더(YonaAttachments.vue, element.ts - 드롭존/버튼/카드
                     목록은 Shadow DOM, 외부 <textarea>는 configure()로 명령형 연동)
+  review-form/    - 플로팅 코드리뷰 댓글 상자(YonaReviewForm.vue, element.ts -
+                    <Teleport>로 diff 테이블의 필요한 위치에 실제 라이트 DOM으로
+                    옮겨 그리고, <yona-markdown-editor-vue>/<yona-attachments>를
+                    자식으로 조합한다)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
                     마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
-                    어태치먼트는 시각 템플릿이 없거나 정적 마크업으로 데모하기
-                    애매해서 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
+                    어태치먼트/review-form은 시각 템플릿이 없거나 정적 마크업으로
+                    데모하기 애매해서 이 데모에는 포함하지 않았다(스모크 테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts  - 위젯별 순수 함수 단위 테스트
   (파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
-  dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs
+  dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
+  review-form-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -350,14 +355,91 @@ scoped 버그 회피 패턴 재사용) 메뉴를 순수 CSS(`top: 100%`)만으�
 컨테이너가 `<yona-attachments>`(태그명으로 판별)면 `configure()`로 위임하고,
 그렇지 않으면 원본 vanilla 구현이 처리한다.
 
+## review-form 위젯
+
+`yona.CodeCommentBox.js` + `common/reviewForm.html`을 다시 썼다. 페이지당
+단 하나만 존재하는 "플로팅 코드리뷰 댓글 상자"로, 코드 diff 화면에서 새
+라인/범위 댓글을 달 때든 기존 스레드에 답글을 달 때든 이 하나의 컴포넌트를
+diff 테이블의 필요한 위치로 옮겨 재사용한다.
+
+**처음엔 "diff 뷰에 결합된 DOM 재배치 오케스트레이션이라 위젯 경계가 없다"고
+판단했었다** - 다시 쪼개보니 둘 다 실제로는 풀리는 문제였다:
+1. **DOM 재배치**(원본은 `appendChild`로 폼을 diff 테이블의 여러 위치로 옮김)
+   → Vue의 `<Teleport :to="...">`가 정확히 이 문제를 위한 선언적 기능이다.
+   **핵심 발견(다른 위젯과 가장 다른 점)**: Teleport로 이동한 콘텐츠는 이
+   컴포넌트의 Shadow DOM 밖, 목적지의 진짜 라이트 DOM이 된다 - 그래서
+   review-form/write-comment-box 등의 CSS를 이 컴포넌트 안에 이식할 필요가
+   전혀 없었다(전역 yona.css를 그대로 상속받는다 - 지금까지 만든 위젯 중
+   유일하게 `<style>` 블록이 아예 없다). 같은 이유로 `yona.code.Diff.js`의
+   전역 클릭 델리게이트(`closest(".review-form")`)도 shadow 경계 문제 없이
+   그대로 작동한다.
+2. **벤더 에디터 강제 재마운트**(원본 `_remountEditor`가 매번 `cloneNode`로
+   새 인스턴스를 만듦 - 벤더 에디터가 disconnected/reconnected를 재초기화하지
+   않는 버그를 우회하기 위한 것)는 위젯 자체의 한계가 아니라 원본 vanilla
+   에디터의 버그를 우회하려던 것이었다 - 이미 만든 `<yona-markdown-editor-vue>`로
+   바꾸고 `:key`를 매 `show()`마다 바꿔주면(Vue가 알아서 완전히 새 인스턴스로
+   교체) 이 트릭 자체가 필요 없어진다(GitHub 등처럼 "닫으면 초안을 버리고
+   다음엔 깨끗하게 시작"하는 원본의 의도된 동작과도 정확히 일치한다).
+
+트리거 로직(언제/어디에 뜰지 결정, 드래그 선택으로 blockInfo 계산)은
+`yona.code.Diff.js`(861줄, diff 렌더링) 소유라 건드리지 않았다 - toast/dialog와
+동일한 패턴으로 `show(target, options)/hide()/toggle()/isVisible()/height()/
+offset()/configure()` 공개 계약만 그대로 유지한다. 첨부파일 업로드 폼은 이미
+만든 `<yona-attachments>`를, 마크다운 에디터는 `<yona-markdown-editor-vue>`를
+자식 컴포넌트로 그대로 조합해 재사용한다(여러 컴포넌트가 서로 통신/조합해도
+된다는 판단 - Teleport 이동 후에도 자식들은 여전히 실제 `<form>`의 라이트 DOM
+자손이라 `FormData`/제출에 정상적으로 포함된다).
+
+**실대치 검증 중 발견한 진짜 버그 세 개(옆에 나란히 두는 비교로는 절대 안
+드러남)**:
+1. **`yona.css`의 `.review-form { display: none; }`**: 원본은 `_show()`에서
+   `welCommentWrap.style.display = "block"`으로 이 전역 규칙을 인라인 스타일로
+   덮어썼다 - Vue의 `v-if`만으로는 이 규칙을 이길 수 없다(엘리먼트 자체가
+   DOM에서 사라졌다 나타날 뿐, CSS 클래스가 여전히 `display: none`이라 다시
+   보이지 않는다). 폼이 실제로 diff 테이블에 삽입은 되는데 화면에 아예 안
+   보이는 채로 처음 발견했다(Playwright의 "element is not visible" 타임아웃으로
+   재현). 원본과 동일하게 인라인 `style="display: block"`을 그대로 재현해
+   해결했다.
+2. **`common/reviewForm.html`의 `th:fragment` 시그니처 유실**: 이 템플릿은
+   `code/diff.html`이 `~{'common/reviewForm' :: reviewForm(project, resourceType,
+   action)}`로 직접 참조하는 Thymeleaf 프래그먼트다 - 마크업을 `<yona-review-form>`
+   태그로 교체하면서 원본 div에 있던 `th:fragment="reviewForm(project,
+   resourceType, action)"` 속성을 옮기지 않으면 "template or fragment could not
+   be resolved" 예외로 diff 페이지 자체가 렌더링 중 깨진다(로그인한 사용자만
+   이 조건절을 타므로 익명 사용자로 확인하면 발견되지 않는다 - 실제로 이
+   함정에 먼저 걸렸다). 새 루트 태그에 그대로 옮겨 해결.
+3. **CSRF 히든 필드 누락**: 원본이 쓰던 `th:action="@{...}"` 폼은 Spring의
+   `RequestDataValueProcessor` + thymeleaf-spring6의 `SpringActionTagProcessor`가
+   `_csrf` 히든 필드를 자동으로 주입해준다(`layout.html`의 loginDialog 폼과
+   동일한 메커니즘) - 이 컴포넌트는 순수 `:action` 바인딩이라 그 자동 주입을
+   받지 못해 실제 폼 제출이 매번 403으로 거부됐다(Playwright로 실제 제출까지
+   해봐야만 드러남 - 폼 자체는 정상으로 보인다). 서버가 렌더링 시점에 이미
+   알고 있는 실제 토큰(`${_csrf.parameterName}`/`${_csrf.token}`)을
+   avatarUrl/actionUrl과 동일하게 `data-csrf-param`/`data-csrf-token` 속성으로
+   넘겨받아 히든 필드로 직접 재현해 해결했다.
+
+**실대치 검증**: 실제 프로젝트를 만들고 실제 git 커밋 2개(파일 내용이 실제로
+다른 diff)를 만든 뒤, 그 커밋의 실제 diff 페이지에서 실제 라인 번호를 클릭해
+(`code/diff.html`의 실제 인라인 스크립트가 실제 `htBlockInfo`를 구성해
+`show()`를 호출하는 경로) `<yona-review-form>`이 실제 `<tr class="comment-form">`
+으로 정확히 teleport되는지, 실제 마크다운 에디터에 타이핑한 내용이 실제 폼
+제출로 서버에 영속되는지(POST → 302 리다이렉트 → 새 댓글이 실제로 diff 페이지에
+렌더링되고 사이드바 Review 카운트까지 갱신됨)까지 전부 실서버 화면에서
+확인했다.
+
+**하위 호환**: `yona.CodeCommentBox.js`도 하이브리드 어댑터로 다시 썼다 -
+`#review-form` 컨테이너가 `<yona-review-form>`(태그명으로 판별)면
+`show`/`hide`/`isVisible`/`height`/`offset`으로 위임하고, 그렇지 않으면 원본
+vanilla 구현이 처리한다.
+
 ## 진짜로 여기서 마감한 후보들
 
-여덟 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
-어태치먼트)을 거치며 배운 것: "위젯 경계가 없다"는 판단은 거의 항상
-검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments 넷 다 처음엔 이
-목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다. 아래는 실제로
-조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드) 자체
-템플릿이 없는(Calendar/TomSelect) 경우만 남았다.
+아홉 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트/review-form)을 거치며 배운 것: "위젯 경계가 없다"는 판단은 거의
+항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments/review-form
+다섯 다 처음엔 이 목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다.
+아래는 실제로 조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드)
+자체 템플릿이 없는(Calendar/TomSelect) 경우만 남았다.
 
 - **`yona.ui.Tabs.js`**: 유일한 동작인 `_restoreTab()`이 legacy 버그(`"toggle" ==
   "tab"`가 항상 false로 평가됨, v1.6부터 그대로)로 처음부터 완전한 no-op이다 -
@@ -369,38 +451,16 @@ scoped 버그 회피 패턴 재사용) 메뉴를 순수 CSS(`top: 100%`)만으�
   인스턴스화 호출 0건, 대상 마크업(`#compare`/`#mergely`) 0건, 심지어 의존 라이브러리
   (`$.fn.mergely`)조차 저장소에 존재하지 않는다.
 
-## 다음 후보(설계만 - 아직 구현 안 함): CodeCommentBox
+## (지난 판단 기록) Dialog/Dropdown/Typeahead/review-form도 한때 "마감 후보"였다
 
-`yona.CodeCommentBox.js` + `common/reviewForm.html`도 처음엔 "위젯이 아니라
-diff 뷰에 결합된 DOM 재배치 오케스트레이션이라 경계가 없다"고 판단했었다 -
-다시 쪼개보니 그렇지 않았다:
-
-1. **DOM 재배치**(`_placeReviewForm`가 매번 `appendChild`로 폼을 diff 테이블의
-   여러 위치로 옮김) → Vue의 `<Teleport :to="...">`가 정확히 이 문제(상태에
-   따라 다른 위치에 렌더링)를 위한 선언적 기능이다.
-2. **벤더 에디터 강제 재마운트**(`_remountEditor`가 `cloneNode`로 매번 새
-   인스턴스를 만듦 - 벤더 에디터가 disconnected/reconnected를 재초기화하지
-   않는 버그 우회용)는 위젯 자체의 한계가 아니라 **원본 vanilla 에디터의
-   버그를 우회**하려던 것이었다 - 이미 만든 `<yona-markdown-editor-vue>`로
-   바꾸면 "닫을 때 초기화"가 반응형 상태 초기화 한 줄이면 끝나 이 트릭 자체가
-   필요 없어진다.
-3. **트리거 로직**(언제/어디에 뜰지 결정, 드래그 선택으로 blockInfo 계산)은
-   `yona.code.Diff.js`(861줄, diff 렌더링) 소유라 안 건드리고, dialog/toast와
-   동일한 패턴으로 `show(target, options)/hide()` 공개 계약만 유지하면 된다.
-4. **첨부파일 업로드 폼**(`common/uploadForm.html`)은 위 `<yona-attachments>`를
-   그대로 자식 컴포넌트로 끼워 넣으면 된다.
-
-아직 구현하지 않았다 - 범위가 CodeCommentBox(302줄) + `yona.code.Diff.js`
-연동까지라 지금까지 중 가장 크다.
-
-## (지난 판단 기록) Dialog/Dropdown/Typeahead도 한때 "마감 후보"였다
-
-`yona.ui.Dialog.js`/`yona.ui.Dropdown.js`/`yona.ui.Typeahead.js`는 처음엔 마감
-목록에 넣었었다(전역 버튼 CSS 클래스/전역 dropdown 델리게이트/정적 템플릿 부재
-문제) - 하지만 셋 다 스위치/에디터에서 이미 검증한 "열린 부분은 라이트 DOM에
-남기고 Vue는 얇은 행동 레이어만 맡는다"는 탈출구로 풀리는 문제였다. 셋 다 위
-각 위젯 절에서 실제로 구현·
-실대치 검증까지 마쳤다 - 이 시점에서 확인 가능한 `yona.ui.*` 위젯 후보는 모두 소진했다.
+`yona.ui.Dialog.js`/`yona.ui.Dropdown.js`/`yona.ui.Typeahead.js`/
+`yona.CodeCommentBox.js`는 처음엔 마감 목록에 넣었었다(전역 버튼 CSS 클래스/
+전역 dropdown 델리게이트/정적 템플릿 부재/diff 뷰 결합 DOM 재배치 문제) -
+하지만 넷 다 스위치/에디터에서 이미 검증한 "열린 부분은 라이트 DOM에 남기고
+Vue는 얇은 행동 레이어만 맡는다"는 탈출구(review-form은 `<Teleport>`)로
+풀리는 문제였다. 넷 다 위 각 위젯 절에서 실제로 구현·실대치 검증까지
+마쳤다 - 이 시점에서 확인 가능한 `yona.ui.*`/`yona.CodeCommentBox.js` 위젯
+후보는 모두 소진했다.
 
 ## 요구 사항
 
@@ -421,29 +481,31 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 여덟 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+npm run build:elements  # 아홉 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
                          # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
-                         # <yona-typeahead>/<yona-attachments> 네이티브 커스텀 엘리먼트로
-                         # 한 번에(dist-element/, es 모듈 포맷 - 엔트리 8개 + 위젯들이
-                         # 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
+                         # <yona-typeahead>/<yona-attachments>/<yona-review-form>
+                         # 네이티브 커스텀 엘리먼트로 한 번에(dist-element/, es 모듈
+                         # 포맷 - 엔트리 9개 + 위젯들이 공유하는 청크 - 청크 파일명은
+                         # 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 8개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 9개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
-`yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`
-+ 공유 청크 - 엔트리들이 상대 경로 `import`로 참조하므로 같은 디렉터리에 같이
-있어야 한다)를 yona 저장소에 vendoring하고, 템플릿에 해당 태그
-(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/`<yona-toast>`/
-`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/`<yona-typeahead>`/
-`<yona-attachments>` - 단, `<yona-typeahead>`는 정적 템플릿에
-직접 쓰지 않고 `yona.ui.Typeahead.js` 어댑터가 생성한다)와
-**`<script type="module">`**을 넣으면 됩니다(각 위젯 구현의 세부
-props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고). 커스텀 엘리먼트들은
-서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유 청크만 같이 복사하면 됩니다.
+`yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`/
+`yona-review-form-element.js` + 공유 청크 - 엔트리들이 상대 경로 `import`로
+참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona 저장소에 vendoring하고,
+템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
+`<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/
+`<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>` - 단,
+`<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js`
+어댑터가 생성한다)와 **`<script type="module">`**을 넣으면 됩니다(각 위젯
+구현의 세부 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고).
+커스텀 엘리먼트들은 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유
+청크만 같이 복사하면 됩니다.
 
 **주의**: 도움말 패널의 `markdownImages` 예시가 실제 yona 정적 에셋
 (`/assets/images/ico-like-small.png`)을 가리킵니다 - 이 저장소를 격리 실행(개발
@@ -516,8 +578,20 @@ esbuild로 트랜스파일한 뒤 `node --test`로 한 번에 실행합니다.
   삭제 요청이 발생하고 카드/링크/hidden input이 정리되는지, (e) **외부
   textarea에 직접 붙여넣기했을 때** 실제로 업로드가 트리거되는지(실대치에서
   발견한 리스너 위치 버그의 회귀 방지) 확인.
+- `review-form-element.mjs`: `dist-element/yona-review-form-element.js`를 정적
+  HTML(`review-form-element.html`, `<script type="module">` + `data-*` 속성)에
+  로드해 (a) 새 범위/라인 댓글용 임시 `<tr class="comment-form">`가 실제로
+  생성되고 라이트 DOM으로 teleport되는지, (b) top/bottom 배치에 따른 화살표
+  클래스가 맞는지, (c) blockInfo → hidden 필드 변환(`aBlockWords` 제외 포함)이
+  정확한지, (d) 자식으로 넣은 에디터/첨부파일 위젯이 실제로 렌더링되는지,
+  (e) 기존 스레드로의 답글(`data-thread-id`)이 `.comment-thread-wrap`으로
+  정확히 teleport되는지(Teleport가 다음 reactive tick에 렌더링하는 타이밍
+  고려), (f) `show()`를 반복 호출해도 매번 완전히 새 에디터 인스턴스로
+  교체되는지(초안 미유지 확인), (g) `hide()` 시 새로 만든 임시 `<tr>`만
+  제거되고 기존 스레드 wrap은 유지되는지, (h) `toggle()`/닫기 버튼 클릭까지
+  공개 API 전체 확인.
 
-`*-element.mjs` 여덟 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 아홉 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/

@@ -12,7 +12,7 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [
     vue({
-      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments)\.vue$/,
+      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments|YonaReviewForm)\.vue$/,
     }),
   ],
   // 라이브러리 빌드는 index.html 기반 앱 빌드와 달리 Vue 런타임의 `process.env.NODE_ENV`
@@ -33,6 +33,7 @@ export default defineConfig({
         "yona-dialog-element": "src/dialog/element.ts",
         "yona-typeahead-element": "src/typeahead/element.ts",
         "yona-attachments-element": "src/attachments/element.ts",
+        "yona-review-form-element": "src/review-form/element.ts",
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
