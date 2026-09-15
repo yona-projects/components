@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title>
+<style>
+  /* .label-editor-wrap 조상 스코프 CSS - "Teleport to self"가 실제로 라이트 DOM
+     자식을 만들어 이 규칙이 먹는지 검증하는 용도(실측: 안 먹으면 배경이 안 보임). */
+  .label-editor-wrap .new-label-wrap { background: rgb(17, 17, 17); }
+</style>
+</head>
+<body>
+<div class="label-editor-wrap">
+  <div id="labelsList">
+    <div class="category-wrap" data-category="1" data-category-name="default">
+      <span class="issue-label" style="background-color: rgb(244, 67, 54);"></span>
+      <span data-label-name="bug"></span>
+    </div>
+  </div>
+  <yona-new-label-form id="target" data-action="/mock-labels"></yona-new-label-form>
+</div>
+<script type="module">
+  import "../dist-element/yona-dialog-element.js";
+  import "../dist-element/yona-typeahead-element.js";
+  import "../dist-element/yona-new-label-form-element.js";
+</script>
+<yona-dialog id="dialog"></yona-dialog>
+</body>
+</html>

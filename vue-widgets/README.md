@@ -47,6 +47,15 @@ src/
                     showPopoverError/hidePopoverError/initHoverPopovers 다섯
                     계약을 하나의 싱글턴으로 통합, <Teleport>를 트리거마다
                     동적으로 body/열린 dialog에 바꿔 그린다)
+  label-editor/   - 라벨/카테고리 관리 화면(YonaNewLabelForm.vue/
+                    new-label-form-element.ts, YonaCategoryEditDialog.vue/
+                    category-edit-dialog-element.ts, YonaLabelEditDialog.vue/
+                    label-edit-dialog-element.ts 세 커스텀 엘리먼트 +
+                    YonaColorPicker.vue(내부 전용, 커스텀 엘리먼트 아님) +
+                    color.ts/request.ts/data.ts/messages.ts 순수 로직 +
+                    list-adapter.ts(커스텀 엘리먼트 아닌 페이지 소유
+                    위임 어댑터) - 하나의 원본 파일(980줄)을 여러 컴포넌트로
+                    분해한 유일한 위젯, 아래 "label-editor 위젯" 절 참고)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
                     마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
                     어태치먼트/review-form/pagination/login-dialog/scroll-elevator/
@@ -55,14 +64,16 @@ src/
                     테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts,
-  popover.test.ts  - 위젯별
+  popover.test.ts, label-editor-{color,request,messages,data}.test.ts  - 위젯별
   순수 함수 단위 테스트(파일명 접두어로 구분)
 smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
   dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
   review-form-element.mjs, pagination-element.mjs, login-dialog-element.mjs,
-  scroll-elevator-element.mjs, page-slide-element.mjs, popover-element.mjs
+  scroll-elevator-element.mjs, page-slide-element.mjs, popover-element.mjs,
+  new-label-form-element.mjs, category-edit-dialog-element.mjs,
+  label-edit-dialog-element.mjs, label-list-adapter.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -712,25 +723,129 @@ contain...")와 함께 왼쪽에 화살표까지 정확한 위치로 뜨는지, 
 전부 커스텀 엘리먼트 존재 여부로 분기해 위임하고(태그명이 아니라 싱글턴
 엘리먼트를 클로저로 캐싱), 그렇지 않으면 원본 vanilla 구현이 처리한다.
 
+## label-editor 위젯
+
+`yona.issue.LabelEditor.js`(980줄) - 프로젝트 설정의 라벨/카테고리 관리 화면
+전체. 사용자 지시("여러 컴포넌트로 분할하고 통신해도 좋으니 구조적으로 잘
+짜줘")에 따라 하나의 거대한 컴포넌트로 몰아넣지 않고 독립된 커스텀 엘리먼트
+셋 + 순수 로직 모듈 넷 + 페이지 소유 어댑터 하나로 분해했다:
+
+- **`YonaNewLabelForm.vue`**(`<yona-new-label-form>`) - 새 라벨 추가 폼
+  (`#frmNewLabel`을 대체). 카테고리 입력은 이미 이식된 `<yona-typeahead>`를
+  자식으로 조합한다(review-form이 에디터/첨부파일을 조합한 것과 같은 패턴).
+- **`YonaCategoryEditDialog.vue`**(`<yona-category-edit-dialog>`) - 카테고리
+  수정 다이얼로그(`#editCategory` 대체).
+- **`YonaLabelEditDialog.vue`**(`<yona-label-edit-dialog>`) - 라벨 수정
+  다이얼로그(`#editLabel` 대체). 중복 라벨명/무효 색상 검증 에러는 이미 이식된
+  `<yona-popover>`의 `showPopoverError`를 실제로 불러 쓴다(popover 위젯과의
+  첫 실제 소비 사례).
+- **`YonaColorPicker.vue`**(일반 SFC, 커스텀 엘리먼트로 등록 안 함) - 원본이
+  새 라벨 폼과 라벨 수정 다이얼로그 두 곳에 완전히 중복 구현했던 "프리셋
+  팔레트 + 커스텀 hex 입력" 로직을 하나로 합친 내부 전용 부품. `editVariant`
+  prop으로 두 폼의 유일한 CSS 차이(`.label-preset-colors.edit`는 항상 보임)만
+  구분한다.
+- **순수 로직 모듈 넷**(TDD로 먼저 작성, 24개 테스트) - `color.ts`(hex 정제/
+  유효성 검사/`-moz-`·`-webkit-` 프리픽스/명도 대비), `request.ts`(폼 데이터
+  직렬화), `data.ts`(jQuery `.data()`의 문자열→불리언/숫자/JSON 자동 승격을
+  네이티브 `dataset`에 재현하는 `_coerceDataValue`), `messages.ts`(아래
+  설명).
+- **`list-adapter.ts`**(`attachLabelListAdapter(list)`, 커스텀 엘리먼트
+  아님) - 서버가 렌더링한 라벨 목록(`#labelsList`)의 삭제/수정/카테고리수정
+  버튼 위임 클릭 처리 + 삭제 성공 후 DOM 정리(행/빈 카테고리 제거)만 담당하는
+  페이지 소유 순수 모듈. "트리거는 원래 살던 곳에 남는다"는 Dropdown 이후
+  확립된 경계 판단 그대로 - 목록 자체는 계속 vanilla 서버 렌더링이고, 이
+  모듈은 위임 리스너와 세 커스텀 엘리먼트 호출만 한다.
+
+**`<Teleport :to="host">` - "나 자신에게 텔레포트"(신규 패턴)**:
+`YonaNewLabelForm`은 review-form/login-dialog처럼 "다른 곳으로 옮기거나
+항상 body에 붙는" 위젯이 아니라 서버가 정확히 원본과 같은 자리에 놓아둔
+엘리먼트를 그 자리에 그대로 둬야 하면서도, `.label-editor-wrap .new-label-wrap`
+처럼 조상 클래스를 요구하는 CSS 때문에 Shadow DOM 밖(라이트 DOM)으로
+탈출해야 했다. `useHost()`가 돌려주는 호스트 엘리먼트 자체를 Teleport
+대상으로 쓰면 렌더링된 내용이 host의 진짜 라이트 DOM 자식이 되면서도 host
+자신의 위치는 전혀 안 바뀐다. **함정 - 빈 `<slot>`이 없으면 화면에 아예 안
+그려진다**: 템플릿 최상위가 `<Teleport>` 하나뿐이면 shadow root가 사실상
+비어(Teleport는 실제 노드를 안 남기는 코멘트 앵커일 뿐) host의 라이트 DOM
+자식들이 shadow 합성 "flat tree"에 편입될 `<slot>`이 없어 전혀 렌더링되지
+않는다(`getComputedStyle`의 모든 속성이 빈 문자열 - `display:none`과 다른
+증상, 레이아웃 계산 자체가 안 일어난다). Teleport와 별도로 빈
+`<slot></slot>`을 둬야 한다.
+
+**TomSelect와의 두 가지 타이밍 함정(둘 다 real-substitution 검증에서만
+드러남 - 스모크 테스트는 fake tomselect를 직접 주입해서 이 둘을 못 잡았다)**:
+1. 전역 TomSelect 스캐너(`site/layout.html`)는 `DOMContentLoaded` 시점의
+   1회성 스캔이라(MutationObserver 없음), `<select data-toggle="tomselect">`
+   가 그 시점에 실제 라이트 DOM에 있어야 한다 - 다이얼로그를 `v-if`로 감추지
+   않고 처음부터(네이티브 `<dialog>` open/closed 상태로만) 항상 렌더링해야
+   한다(LoginDialog 패턴).
+2. **동적으로 채우는 `<option>`은 반드시 `onMounted`에서 채워야 한다.**
+   `YonaLabelEditDialog`가 처음엔 카테고리 옵션을 `show()`(사용자가 편집
+   버튼을 눌렀을 때) 안에서 채웠는데, TomSelect는 이미 `DOMContentLoaded`
+   시점에 빈 `<select>`를 스캔해버린 뒤라 `tomselect.options`/`getValue()`가
+   영원히 비고, 그 결과 모든 PUT 요청의 `category.id`가 빈 문자열로 나가
+   **수정 기능 전체가 항상 400으로 실패**했다(실제 yona 페이지에 real-
+   substitution으로 붙여보고 나서야 발견한 버그 - `YonaCategoryEditDialog`는
+   처음부터 정적 옵션이라 이 함정에 안 걸렸다).
+
+**`v-show`는 전역 CSS 클래스의 무조건 규칙을 못 이긴다(같은 버그 클래스
+재발, 역시 real-substitution에서만 발견)**: `YonaNewLabelForm`이 색상
+피커에 `v-show="colorsVisible"`를 썼는데, 실제 `yona.css`의
+`.label-preset-colors { display: none; }`는 조건 없이 항상 적용돼 `v-show`가
+보일 때 리셋하는 빈 인라인 스타일로는 못 이긴다(LoginDialog의 `.error`
+박스에서 이미 겪은 것과 동일한 함정). `:style="{display: 조건 ? 'block' :
+'none'}"`로 인라인 스타일에 명시적으로 값을 줘서 해결했다(원본도
+`elements.colorsWrap.style.display = "block"`로 동일하게 처리한다). **컴포넌트
+자체 smoke-test만으로는 안 잡히고 실제 yona.css를 로드하는 real-substitution
+검증에서만 드러난다** - 전역 CSS 클래스가 관여하는 표시/숨김 로직은 항상 이
+검증까지 거칠 것.
+
+**전역 `Messages()`를 템플릿에서 직접 부르면 깨진다**: `<script setup>`은
+`declare function Messages(...)` 같은 TS 앰비언트 선언에 런타임 바인딩을
+안 만든다 - 템플릿이 `Messages`를 직접 참조하면 SFC 컴파일러가 인식된
+스크립트 바인딩으로 못 보고 `_ctx.Messages(...)`로 컴파일해 런타임에
+"X.Messages is not a function"으로 깨진다(스모크 테스트로 실측 발견). 기존
+위젯(LoginDialog/Dialog/Pagination)이 이미 각자 로컬 wrapper로 이 함정을
+피해왔길래, label-editor 세 컴포넌트가 공유하는 `messages.ts`(`msg(key,
+...args)` - 전역 `Messages`가 있으면 위임, 없으면 내장 영문 폴백 사전에서
+`{0}`/`{1}` 치환)로 한 번에 정리했다 - 템플릿은 항상 `msg(...)`만 참조한다.
+
+**목록 갱신은 항상 전체 새로고침(SPA화하지 않음, 의도적 단순화)**: 새 라벨
+추가/카테고리 수정/라벨 수정 성공 시 원본처럼 `document.location.reload()`를
+그대로 쓴다(서버의 카테고리별 그룹핑 렌더링 로직을 클라이언트에서 재구현하지
+않기 위한 원본의 의도적 선택, 그대로 유지) - 그래서 세 컴포넌트 사이에
+카테고리 목록 동기화용 커스텀 이벤트가 전혀 필요 없다(각자 `show()`/마운트
+시점에 `div[data-category-name]`을 그때그때 다시 읽으면 항상 최신이다).
+
+**실대치 검증**: 실제 프로젝트의 실제 라벨 설정 화면에 붙여 새 카테고리
+생성(단일/다중 선택 확인 다이얼로그 포함)·기존 카테고리에 라벨 추가·중복
+라벨명 에러·카테고리 이름 변경·라벨 이름/색상/카테고리 변경(실제 PUT
+요청의 `category.id`가 실제로 채워지는지까지 네트워크 레벨로 확인)·라벨
+삭제(확인 다이얼로그 취소/확인, 마지막 라벨 삭제 시 빈 카테고리 자동 제거)
+전체를 실서버에서 두 라운드(버그 발견 라운드 + 수정 후 재검증 라운드)에
+걸쳐 확인했다. 위 두 개(색상 피커 안 보임/카테고리 옵션 영구 공백)가 이
+과정에서 실제로 잡힌 버그다 - 둘 다 사이드바이사이드 비교나 정적 스모크
+테스트로는 발견 불가능했고, 실제 페이지에 실제로 붙여 실제 TomSelect/실제
+CSS와 부딪혀보고 나서야 드러났다.
+
 ## 진짜로 여기서 마감한 후보들
 
-열네 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+열일곱 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
 어태치먼트/review-form/pagination/login-dialog/scroll-elevator/page-slide/
-popover)을 거치며 배운 것: "위젯 경계가 없다"는 판단은 거의 항상 검증
-부족이었다 - Dialog/Dropdown/Typeahead/Attachments/review-form 다섯 다
-처음엔 이 목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다
-(pagination/login-dialog/scroll-elevator/page-slide/popover는 처음부터
-위젯 경계가 명확해 이 목록에 있던 적이 없다). 아래는 그중 실제로 조사해도
-위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이 없는
-(Calendar/TomSelect)
-`yona.ui.*` 계열 경우만 남았다.
+popover/label-editor)을 거치며 배운 것: "위젯 경계가 없다"는 판단은 거의
+항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments/review-form
+다섯 다 처음엔 이 목록에 있었지만 전부 실제로 구현·실대치 검증까지 마쳤다
+(pagination/login-dialog/scroll-elevator/page-slide/popover/label-editor는
+처음부터 위젯 경계가 명확해 이 목록에 있던 적이 없다). 아래는 그중 실제로
+조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드) 자체
+템플릿이 없는(Calendar/TomSelect) `yona.ui.*` 계열 경우만 남았다.
 
 **`common/`/`service/` 전체(77개 파일)를 대상으로 한 최신 전수조사**는
 [docs/widget-candidates.md](docs/widget-candidates.md)에 별도로 정리했다 -
-LoginDialog/ScrollElevator/Tooltip·Popover 시스템/Label 관리 패널/PageSlide
-오버레이 등 아직 착수하지 않은 후보와 우선순위, 그리고 신규 위젯이 아니라
-"이미 이식된 위젯을 확장/재사용해야 하는" 통합 기회까지 담겨 있다. 아래
-목록은 그 문서가 나오기 전, `yona.ui.*` 네임스페이스만 좁게 조사했던 결과다.
+신규 위젯이 아니라 "이미 이식된 위젯을 확장/재사용해야 하는" 통합 기회까지
+담겨 있다(LoginDialog/ScrollElevator/Tooltip·Popover 시스템/Label 관리
+패널/PageSlide 오버레이는 그 문서가 나온 뒤 전부 착수·완료됨 - 문서 자체의
+체크 표시 참고). 아래 목록은 그 문서가 나오기 전, `yona.ui.*` 네임스페이스만
+좁게 조사했던 결과다.
 
 - **`yona.ui.Tabs.js`**: 유일한 동작인 `_restoreTab()`이 legacy 버그(`"toggle" ==
   "tab"`가 항상 false로 평가됨, v1.6부터 그대로)로 처음부터 완전한 no-op이다 -
@@ -772,31 +887,40 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 열네 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
-                         # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
-                         # <yona-typeahead>/<yona-attachments>/<yona-review-form>/
-                         # <yona-pagination>/<yona-login-dialog>/<yona-scroll-elevator>/
-                         # <yona-page-slide>/<yona-popover> 네이티브 커스텀 엘리먼트로
-                         # 한 번에(dist-element/, es 모듈 포맷 - 엔트리 14개 + 위젯들이
+npm run build:elements  # 열일곱 개 커스텀 엘리먼트를 <yona-markdown-editor-vue>/
+                         # <yona-help-markdown>/<yona-toast>/<yona-switch>/
+                         # <yona-dropdown>/<yona-dialog>/<yona-typeahead>/
+                         # <yona-attachments>/<yona-review-form>/<yona-pagination>/
+                         # <yona-login-dialog>/<yona-scroll-elevator>/<yona-page-slide>/
+                         # <yona-popover>/<yona-new-label-form>/<yona-category-edit-dialog>/
+                         # <yona-label-edit-dialog>로 한 번에(dist-element/, es 모듈
+                         # 포맷 - 엔트리 17개 + 커스텀 엘리먼트가 아닌 순수 페이지
+                         # 어댑터 모듈 하나(yona-label-list-adapter.js) + 위젯들이
                          # 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 14개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(커스텀
+엘리먼트 엔트리 17개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
 `yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`/
 `yona-review-form-element.js`/`yona-pagination-element.js`/
 `yona-login-dialog-element.js`/`yona-scroll-elevator-element.js`/
-`yona-page-slide-element.js`/`yona-popover-element.js` + 공유 청크 - 엔트리들이
-상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona
-저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
+`yona-page-slide-element.js`/`yona-popover-element.js`/
+`yona-new-label-form-element.js`/`yona-category-edit-dialog-element.js`/
+`yona-label-edit-dialog-element.js` + 커스텀 엘리먼트가 아닌 순수 페이지
+어댑터 모듈 `yona-label-list-adapter.js`(`attachLabelListAdapter(list)`를
+export하는 일반 ESM - `defineCustomElement`로 등록하지 않는다) + 공유 청크 -
+엔트리들이 상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를
+yona 저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
 `<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/
 `<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>`/`<yona-pagination>`/
-`<yona-login-dialog>`/`<yona-scroll-elevator>`/`<yona-popover>` - 단,
-`<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js`
+`<yona-login-dialog>`/`<yona-scroll-elevator>`/`<yona-popover>`/
+`<yona-new-label-form>`/`<yona-category-edit-dialog>`/`<yona-label-edit-dialog>` -
+단, `<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js`
 어댑터가, `<yona-pagination>`도 정적 템플릿에 쓰지 않고 `yona.Pagination.js`
 어댑터가 기존 `<div id="pagination">`을 그 자리에서 감싸며,
 `<yona-scroll-elevator>`/`<yona-page-slide>`/`<yona-popover>`도 정적 템플릿에
@@ -805,7 +929,11 @@ npm run typecheck
 **`<script type="module">`**을 넣으면 됩니다(각 위젯
 구현의 세부 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고).
 커스텀 엘리먼트들은 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유
-청크만 같이 복사하면 됩니다.
+청크만 같이 복사하면 됩니다. `<yona-new-label-form>`/`<yona-category-edit-dialog>`/
+`<yona-label-edit-dialog>`는 정적 템플릿(`project/issuelabels.html` 등)에 직접
+쓰되, `#labelsList`의 삭제/수정/카테고리수정 버튼 위임은 정적 템플릿이 아니라
+페이지 쪽에서 `attachLabelListAdapter(document.getElementById("labelsList"))`를
+한 번 호출해 붙여야 한다(아래 "label-editor 위젯" 절 참고).
 
 **주의**: 도움말 패널의 `markdownImages` 예시가 실제 yona 정적 에셋
 (`/assets/images/ico-like-small.png`)을 가리킵니다 - 이 저장소를 격리 실행(개발
@@ -818,13 +946,15 @@ vendoring됐을 때만 정상 표시됩니다.
 npm run test
 ```
 
-여섯 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 +
-pagination 20개 + popover 8개 = 81개 - 스위치/드롭다운/다이얼로그/타입어헤드/
-어태치먼트/review-form/login-dialog/scroll-elevator/page-slide는 라이트 DOM
-조작이나 DOM 생성/Teleport 자체가 핵심이라 순수 함수로 뽑을 로직이 마땅치
-않아 전부 스모크 테스트로만 검증)를 esbuild로 트랜스파일한 뒤 `node --test`로
-한 번에 실행합니다. pagination/popover는 컴포넌트보다 순수 함수
-(`pagination.ts`/`popover.ts`) 테스트를 먼저 작성한 뒤 구현한 위젯들이다
+일곱 위젯의 순수 함수 단위 테스트(에디터 46개 + 도움말 패널 3개 + 토스트 4개 +
+pagination 20개 + popover 8개 + label-editor 24개(색상 10 + 요청 직렬화 2 +
+i18n 폴백 4 + `_coerceDataValue` 재현 8) = 105개 - 스위치/드롭다운/다이얼로그/
+타입어헤드/어태치먼트/review-form/login-dialog/scroll-elevator/page-slide는
+라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심이라 순수 함수로 뽑을 로직이
+마땅치 않아 전부 스모크 테스트로만 검증)를 esbuild로 트랜스파일한 뒤
+`node --test`로 한 번에 실행합니다. pagination/popover/label-editor는
+컴포넌트보다 순수 함수(`pagination.ts`/`popover.ts`/`label-editor/{color,
+request,messages,data}.ts`) 테스트를 먼저 작성한 뒤 구현한 위젯들이다
 (TDD) - pagination은 테스트를 먼저 쓰는 과정에서 원본 정규식의 실제 동작
 (주석과 다름)을 미리 검증 케이스로 못박아 뒀고, popover는 placement별 위치
 계산 공식(4가지 배치 + 인식 안 되는 값의 기본 분기)을 구현 전에 먼저
@@ -947,8 +1077,51 @@ pagination 20개 + popover 8개 = 81개 - 스위치/드롭다운/다이얼로그
   시 100ms 디바운스로 실제 팝오버가 표시/제거되는지, (g) 열린 `<dialog>`
   안 트리거의 툴팁/팝오버는 body가 아니라 그 dialog의 자식으로 렌더링되는지
   (top layer 대응) 확인.
+- `new-label-form-element.mjs`: `dist-element/yona-new-label-form-element.js`를
+  정적 HTML(`new-label-form-element.html`, `<script type="module">` + 실제
+  `.label-editor-wrap .new-label-wrap` 조상 스코프 CSS + `<yona-typeahead>`/
+  `<yona-dialog>` 조합)에 로드해 (a) "Teleport to self"로 실제 host의 라이트
+  DOM 자식이 되고 그 조상 스코프 CSS(`background: rgb(17, 17, 17)`)가 실제로
+  적용되는지(빈 `<slot>` 회귀 방지), (b) host 자신의 원래 위치는 안 바뀌는지,
+  (c) 카테고리 typeahead가 실제 라벨 목록으로 configure되는지, (d) 기존
+  카테고리에 포커스하면 그 카테고리의 첫 라벨 색으로 자동 채워지는지,
+  (e) 중복 라벨명 제출 시 실제 에러 다이얼로그가 뜨는지, (f) 새 카테고리면
+  단일/다중 확인 다이얼로그가 뜨고 선택에 따라 실제 요청 바디의
+  `categoryIsExclusive`가 반영되는지, (g) 성공 시 실제로 페이지가
+  리로드되는지 확인.
+- `category-edit-dialog-element.mjs`: `dist-element/yona-category-edit-dialog-element.js`를
+  정적 HTML(`category-edit-dialog-element.html`, `<script type="module">` +
+  `<yona-dialog>`)에 로드해 (a) `<Teleport to="body">`로 실제 body 직계
+  자식이 되는지, (b) `show(data)`로 실제 입력값/select 값이 채워지고
+  Messages()로 버튼 라벨이 반영되는지, (c) 배경 클릭/X 버튼으로 실제
+  닫히는지, (d) 저장 시 실제 PUT 요청(바뀐 이름/`project.id`)이 나가고
+  성공하면 실제로 페이지가 리로드되는지, (e) 서버 에러(500) 시 실제 에러
+  다이얼로그가 Messages()로 조합돼 뜨고 다이얼로그가 닫히는지 확인.
+- `label-edit-dialog-element.mjs`: `dist-element/yona-label-edit-dialog-element.js`를
+  정적 HTML(`label-edit-dialog-element.html`, `<script type="module">` +
+  `<yona-dialog>`/`<yona-popover>` + 실제 라벨 목록 마크업)에 로드해 (a)
+  `<Teleport to="body">`로 실제 body 자식이 되는지, (b) `show(data)`로 실제
+  이름/색상이 채워지는지, (c) 같은 카테고리 내 중복 이름이면 실제 팝오버
+  에러가 뜨는지, (d) blur 시점의 무효한 색은 원본과 동일하게 조용히
+  무시되지만(alert 없음) 제출 시점에는 팝오버 에러가 뜨고 요청이 안
+  나가는지(YonaColorPicker를 공유하는 두 폼의 실제 blur 동작 차이 회귀
+  방지), (e) 정상 제출 시 실제 PUT 요청(바뀐 이름/색상/`category.id`)이
+  나가고 성공하면 페이지가 리로드되는지 확인.
+- `label-list-adapter.mjs`: `dist-element/yona-label-list-adapter.js`(커스텀
+  엘리먼트가 아닌 순수 페이지 어댑터 모듈)를 정적 HTML(`label-list-adapter.html`,
+  실제 라벨 목록 마크업 + `<yona-dialog>`/`<yona-label-edit-dialog>`/
+  `<yona-category-edit-dialog>`)에 `attachLabelListAdapter(list)`로 붙여
+  (a) 삭제 버튼 클릭 시 실제 확인 다이얼로그가 `$yona.confirm` 기본값
+  (취소/확인 두 버튼)으로 뜨는지, (b) 취소하면 실제 요청도 행 삭제도 안
+  일어나는지, (c) 확인하면 실제 DELETE(POST + `_method=delete` 오버라이드)
+  요청이 나가고 그 행이 사라지는지, (d) 마지막 라벨까지 지우면 실제로 빈
+  카테고리 블록 자체가 사라지는지, (e) 수정/카테고리수정 버튼 클릭이 실제
+  `yona-label-edit-dialog`/`yona-category-edit-dialog`의 `show()`를 버튼의
+  `data-*`(jQuery `.data()` 문자열→불리언 강제변환 포함)로 정확히 호출하는지
+  확인.
 
-`*-element.mjs` 열네 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs`(커스텀 엘리먼트용 열일곱 개 + 페이지 어댑터용 `label-list-adapter.mjs`)는
+`npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/

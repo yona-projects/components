@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title></head>
+<body>
+<div id="labelsList">
+  <div class="category-wrap" data-category="1" data-category-name="default">
+    <button
+      type="button"
+      class="btn-edit-category"
+      data-project-id="1"
+      data-category-id="1"
+      data-category-name="default"
+      data-category-is-exclusive="true"
+      data-category-update-uri="/mock-category/1"
+    >카테고리 수정</button>
+    <table>
+      <tbody>
+        <tr data-label-id="10">
+          <td><span data-label-name="bug"></span></td>
+          <td>
+            <button
+              type="button"
+              class="btn-edit-label"
+              data-category-id="1"
+              data-label-name="bug"
+              data-label-color="#f44336"
+              data-update-uri="/mock-label/10"
+            >수정</button>
+            <button type="button" class="btn-delete-label" data-category-name="default" data-label-id="10" data-delete-uri="/mock-label/10">삭제</button>
+          </td>
+        </tr>
+        <tr data-label-id="11">
+          <td><span data-label-name="feature"></span></td>
+          <td>
+            <button type="button" class="btn-delete-label" data-category-name="default" data-label-id="11" data-delete-uri="/mock-label/11">삭제</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<yona-dialog id="dialog"></yona-dialog>
+<yona-label-edit-dialog id="editLabel"></yona-label-edit-dialog>
+<yona-category-edit-dialog id="editCategory"></yona-category-edit-dialog>
+<script type="module">
+  import "../dist-element/yona-dialog-element.js";
+  import "../dist-element/yona-label-edit-dialog-element.js";
+  import "../dist-element/yona-category-edit-dialog-element.js";
+  import { attachLabelListAdapter } from "../dist-element/yona-label-list-adapter.js";
+  attachLabelListAdapter(document.getElementById("labelsList"));
+</script>
+</body>
+</html>

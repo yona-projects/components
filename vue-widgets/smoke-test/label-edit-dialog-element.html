@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title></head>
+<body>
+<div id="labelsList">
+  <div class="category-wrap" data-category="1" data-category-name="default">
+    <span data-label-name="bug"></span>
+    <span data-label-name="feature"></span>
+  </div>
+  <div class="category-wrap" data-category="2" data-category-name="priority">
+    <span data-label-name="urgent"></span>
+  </div>
+</div>
+<yona-label-edit-dialog id="target"></yona-label-edit-dialog>
+<yona-dialog id="dialog"></yona-dialog>
+<yona-popover id="popover"></yona-popover>
+<script type="module">
+  import "../dist-element/yona-dialog-element.js";
+  import "../dist-element/yona-popover-element.js";
+  import "../dist-element/yona-label-edit-dialog-element.js";
+</script>
+</body>
+</html>

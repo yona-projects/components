@@ -12,7 +12,7 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [
     vue({
-      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments|YonaReviewForm|YonaPagination|YonaLoginDialog|YonaScrollElevator|YonaPageSlide|YonaPopover)\.vue$/,
+      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments|YonaReviewForm|YonaPagination|YonaLoginDialog|YonaScrollElevator|YonaPageSlide|YonaPopover|YonaNewLabelForm|YonaCategoryEditDialog|YonaLabelEditDialog)\.vue$/,
     }),
   ],
   // 라이브러리 빌드는 index.html 기반 앱 빌드와 달리 Vue 런타임의 `process.env.NODE_ENV`
@@ -39,6 +39,13 @@ export default defineConfig({
         "yona-scroll-elevator-element": "src/scroll-elevator/element.ts",
         "yona-page-slide-element": "src/page-slide/element.ts",
         "yona-popover-element": "src/popover/element.ts",
+        "yona-new-label-form-element": "src/label-editor/new-label-form-element.ts",
+        "yona-category-edit-dialog-element": "src/label-editor/category-edit-dialog-element.ts",
+        "yona-label-edit-dialog-element": "src/label-editor/label-edit-dialog-element.ts",
+        // Vue 커스텀 엘리먼트가 아니라 페이지 소유 위임 리스너 순수 모듈(#labelsList
+        // 위임 클릭 + 세 커스텀 엘리먼트 호출) - customElement 컴파일 대상이 아니라
+        // 그냥 일반 ESM으로 번들된다.
+        "yona-label-list-adapter": "src/label-editor/list-adapter.ts",
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,

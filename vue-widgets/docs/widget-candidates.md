@@ -5,7 +5,7 @@
 재조사한 결과다. common/은 이 세션에서 두 번째 전수조사(첫 조사에서 놓친 Tooltip/Popover
 시스템을 새로 발견), service/는 이번이 첫 조사다.
 
-**이미 이식 완료(14개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
+**이미 이식 완료(17개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
 패널, 토스트(`yona.ui.Toast.js`), 스위치(`yona.ui.Switch.js`), 드롭다운(`yona.ui.Dropdown.js`),
 다이얼로그(`yona.ui.Dialog.js`), 타입어헤드(`yona.ui.Typeahead.js`), 첨부파일
 (`yona.Attachments.js`), review-form(`yona.CodeCommentBox.js`), pagination
@@ -13,7 +13,10 @@
 1번이었던 항목)**, **scroll-elevator(`yona.ScrollElevator.js`, 2026-09-15 완료 - 아래
 2번이었던 항목)**, **page-slide(`yona.twoColumnMode.js`의 `_pageslide*`, 2026-09-15
 완료 - 아래 3번이었던 항목)**, **popover(`yona.Common.js`의 툴팁/팝오버 시스템,
-2026-09-15 완료 - 아래 4번이었던 항목)**.
+2026-09-15 완료 - 아래 4번이었던 항목)**, **label-editor(`yona.issue.LabelEditor.js`,
+2026-09-15 완료 - 아래 5번이었던 항목, 커스텀 엘리먼트 3개
+`<yona-new-label-form>`/`<yona-category-edit-dialog>`/`<yona-label-edit-dialog>`로
+분해)**.
 
 ## 진짜 위젯 후보 (권장 착수 순서)
 
@@ -54,21 +57,21 @@ login-dialog의 "고정된 한 곳에 Teleport"보다 한 단계 더 나아간 "
 Teleport" 패턴). page-slide에서 배운 "host에 원본과 같은 id를 주면 전역 CSS와
 충돌할 수 있다"는 교훈을 처음부터 반영해 별도 버그 없이 한 번에 통과했다.
 
-### 5. Label 관리 패널 — `yona.issue.LabelEditor.js`(980줄, 44개 함수) — 난이도 높음(review-form급)
+### ~~5. Label 관리 패널~~ — 이식 완료(`../README.md`의 "label-editor 위젯" 절 참고)
 
-`issue/labelsform` 전용 페이지(카테고리·라벨 CRUD)의 전체 구현. 실제 위젯 경계(재확인
-완료):
-- 새 라벨 추가 폼(색상 프리셋 버튼 + hex 입력 실시간 검증/미리보기)
-- 카테고리 편집/라벨 편집용 **네이티브 `<dialog>` 2개**(`elements.editCategoryForm.showModal()`
-  779행, `elements.editLabelForm.showModal()` 840행, `$yona.attachDialogDismiss` 사용 -
-  이미 이식된 Dialog와 같은 기반)
-- 서버 렌더 목록에 대한 delete/edit 위임 클릭, 카테고리 자동완성은 이미 이식된 Typeahead
-  재사용 가능
-
-페이지 전용이지만 후보로 볼 가치가 있는 이유는 재사용성이 아니라 **복잡도/버그 위험**
-이다 - jQuery `.data()` 자동 타입변환을 직접 재현하는 헬퍼, `.submit()` 호출이 실제로는
-`"submit"` 이벤트를 재발생시키는 데 의존하는 재귀 제출 설계 등 미묘한 버그를 이미 안고
-있어 선언적 재작성의 이득이 크다.
+예상대로 review-form급으로 컸다 - 사용자 지시("여러 컴포넌트로 분할해도 좋다")에 따라
+`<yona-new-label-form>`/`<yona-category-edit-dialog>`/`<yona-label-edit-dialog>` 세
+커스텀 엘리먼트 + 두 폼이 완전히 중복 구현했던 색상 프리셋 로직을 합친
+`YonaColorPicker.vue`(비-커스텀-엘리먼트) + 순수 로직 네 모듈(`color.ts`/`request.ts`/
+`data.ts`(`_coerceDataValue` 재현)/`messages.ts`) + 페이지 소유 목록 위임 어댑터
+(`list-adapter.ts`)로 분해했다. 예상 못 한 함정을 real-substitution 검증에서만
+(정적 스모크 테스트로는 못 잡고) 두 개 발견: (1) 새 라벨 폼에서 `v-show`로 색상
+피커를 토글했는데 page-slide/login-dialog에서 이미 겪은 것과 같은 패턴의 버그(전역
+`.label-preset-colors { display: none; }`를 `v-show`의 빈 인라인 스타일로는 못
+이김) - 인라인 스타일에 명시적으로 `display` 값을 줘서 해결. (2) 라벨 수정
+다이얼로그의 카테고리 `<option>`을 `show()`(사용자 액션) 시점에 채웠는데, 전역
+TomSelect 스캐너가 `DOMContentLoaded`에 이미 빈 `<select>`를 스냅샷해버려 수정
+기능 전체가 항상 400으로 실패 - `onMounted()`로 옮겨서 해결.
 
 부속 후보: `yona.project.Home.js` 330~603행(~270줄)의 **프로젝트 홈 인라인 Label Board**
 는 서버 마크업 없이 클라이언트가 처음부터 DOM을 생성하는 미니 버전으로 기능이 겹친다 -
