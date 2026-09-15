@@ -22,14 +22,14 @@ import {
 
 // yobicon/style.css의 코드포인트(사설 영역 유니코드) - 원본 toolbar.ts의 ICON 상수와 동일.
 const ICON = {
-  bold: "",
-  italic: "",
-  quote: "",
-  checklist: "",
-  unorderedList: "",
-  link: "",
-  image: "",
-  preview: "",
+  bold: "",
+  italic: "",
+  quote: "",
+  checklist: "",
+  unorderedList: "",
+  link: "",
+  image: "",
+  preview: "",
 } as const;
 
 export interface ToolbarButtonSpec {
