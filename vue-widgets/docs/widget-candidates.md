@@ -94,11 +94,21 @@ TomSelect 스캐너가 `DOMContentLoaded`에 이미 빈 `<select>`를 스냅샷�
    `_hideCommentBox`(359~451행)가 이미 이식된 review-form을 재사용하지 않고 자체
    댓글박스 이동 로직을 따로 구현 중이다. 신규 포팅이 아니라 **기존 위젯으로 갈아끼우는
    확장 작업**.
-3. **`<yona-typeahead>` 호환성 재검증 필요**: `organization.Member.js`/`project.Member.js`
-   둘 다 `new yona.ui.Typeahead(...)`에 **커스텀 `render` 콜백**을 넘겨 메뉴 템플릿을
-   완전히 교체한다 - README가 전제하는 "메뉴는 항상 같은 모양(닫힌 계약)이라 안전하다"는
-   가정과 충돌할 수 있다. 실제 화면(`organization/members`, `project/members`)에서
-   재검증 권장 - 이미 배포된 위젯의 숨은 사용 패턴이라 우선순위 높음.
+3. ~~**`<yona-typeahead>` 호환성 재검증 필요**~~ — 재검증 완료(2026-09-16), **실제로는
+   충돌 없음**. `yona.organization.Member.js`/`yona.project.Member.js` 둘 다
+   `new yona.ui.Typeahead(...)`에 `render`/`updater` 콜백을 넘기지만, 현재
+   `common/yona.ui.Typeahead.js`(이미 vanilla로 재작성된 버전, Bootstrap
+   `bootstrap-typeahead.js`에 의존하지 않는다는 파일 자체 주석 참고) 소스를 끝까지
+   읽고 grep(`htData\.render`/`htData\.updater`/`options\.item`/`$menu`)으로
+   확인한 결과, `_initVar`/`_process`/`_render`/`_select` 어디에서도 호출부가 넘긴
+   `render`/`updater`를 참조하지 않는다 - 완전히 죽은 옵션이다(레거시 jQuery
+   `bootstrap-typeahead.js` 시절의 `this.options.item`/`this.$menu` API 잔재로
+   추정, vanilla 재작성 때 이 두 옵션만 안 옮겨진 것으로 보임). 즉 이 두 화면의
+   실제 런타임 동작은 이미 순수 기본 렌더링(하이라이트 포함 `<li><a>`)이라
+   `<yona-typeahead>`의 "메뉴는 항상 같은 모양" 전제와 애초에 충돌하지 않는다 -
+   컴포넌트 쪽 조치는 불필요. (부수 발견, 별도 조치 불필요: 호출부의 `_render`/
+   `_updater`/`updater` 함수 자체는 죽은 코드이므로, 별개로 vanilla 쪽 정리를
+   원하면 두 파일에서 지워도 무방하다 - Vue 포팅 범위 밖.)
 4. **체크박스로 게이트된 confirm `<dialog>` 패턴**이 `project.Delete/Transfer/ChangeVCS.js`
    + `organization.View.js` 4곳에서 거의 동일하게 반복된다(`showModal()` +
    `$yona.attachDialogDismiss`). 규모가 작아 우선순위는 낮지만 원하면 작은 공용
