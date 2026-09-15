@@ -32,11 +32,14 @@ src/
                     자식으로 조합한다)
   pagination/     - 페이지네이션(pagination.ts 순수 함수 + YonaPagination.vue,
                     element.ts - 매번 새로 그리는 stateless 위젯, Toast와 같은 계열)
+  login-dialog/   - 익명 사용자용 로그인 다이얼로그(YonaLoginDialog.vue, element.ts -
+                    <Teleport to="body">로 review-form과 같은 이유(전역 CSS 상속)로
+                    라이트 DOM에 그린다, fetch() 기반 제출)
   App.vue         - 네 위젯(에디터/도움말/토스트/스위치)을 한 페이지에 나란히
                     마운트하는 개발/데모 하네스 - 드롭다운/다이얼로그/타입어헤드/
-                    어태치먼트/review-form/pagination은 시각 템플릿이 없거나 정적
-                    마크업으로 데모하기 애매해서 이 데모에는 포함하지 않았다
-                    (스모크 테스트로만 검증)
+                    어태치먼트/review-form/pagination/login-dialog는 시각 템플릿이
+                    없거나 정적 마크업으로 데모하기 애매해서 이 데모에는 포함하지
+                    않았다(스모크 테스트로만 검증)
 test/
   editor-*.test.ts, help-*.test.ts, toast-*.test.ts, pagination.test.ts  - 위젯별
   순수 함수 단위 테스트(파일명 접두어로 구분)
@@ -44,7 +47,7 @@ smoke-test/
   editor-toolbar.mjs, editor-element.mjs, help-panel.mjs, help-element.mjs,
   toast.mjs, toast-element.mjs, switch-element.mjs, dropdown-element.mjs,
   dialog-element.mjs, typeahead-element.mjs, attachments-element.mjs,
-  review-form-element.mjs, pagination-element.mjs
+  review-form-element.mjs, pagination-element.mjs, login-dialog-element.mjs
 ```
 
 각 위젯의 소스 자체(컴포넌트 로직, 원본과 달라진 점 등)는 옮기기 전 각각의 README에
@@ -491,16 +494,77 @@ rxDigit은 통과하지만 isNumeric은 실패하는 값이라야 실제로 에�
 "기존 엘리먼트를 그 자리에서 감싼다" 패턴) `update()`로 위임하고,
 그렇지 않으면 원본 vanilla 구현이 처리한다.
 
+## login-dialog 위젯
+
+`yona.LoginDialog.js`(`site/layout.html`의 익명 사용자용 `#loginDialog`,
+네이티브 `<dialog>`)를 다시 썼다. `[data-login="required"]`가 붙은 트리거
+6곳(로그인 링크, 댓글 작성 폼 등)에서 사이트 전역으로 뜬다.
+
+**설계 결정 - review-form과 같은 이유로 `<Teleport to="body">`**: 이
+다이얼로그는 review-form과 달리 다른 위치로 옮겨 다닐 필요가 없다(항상
+화면 중앙 고정). 그런데도 Teleport를 그대로 썼다 - 이번엔 "동적 위치
+이동"이 아니라 "CSS 포팅 회피" 목적이다. 원본 폼은 `.modal`(bootstrap.css)/
+`.loginDialog`/`.login-form-wrap`/`.frm-wrap`/`.ybtn`/`.oauth-login-btn`/
+`.auth-provider-logo`/`.yona-shake` 등 15개 이상의 전역 클래스에 기대는데,
+Shadow DOM에 그대로 두면(Dialog/Toast/Switch처럼) 전부 이식해야 했다 -
+Teleport로 옮기면 전역 yona.css/bootstrap.css를 그대로 상속받아 포팅이
+전혀 필요 없다(review-form 이후 두 번째로 `<style>` 블록이 아예 없는
+위젯). Teleport가 "다른 위치로 옮겨야 하는 위젯"뿐 아니라 "CSS를 그대로
+상속받고 싶은 위젯" 일반에도 재사용 가능한 패턴임을 확인한 사례다.
+
+**CSRF 재검증(이전 조사에서 review-form과 같은 403 함정을 예상했으나
+실제로는 아니었다)**: 원본이 `th:action` 폼(Thymeleaf 자동 CSRF 히든
+필드 주입)을 쓴 이유는 "익명 사용자에게 sitewide로 렌더링되는 유일한
+순수 HTML action= 서버 렌더링 폼"이었기 때문이라고 원본 주석에 적혀
+있지만, 실제 제출 로직(`_onSubmitForm`)은 네이티브 폼 제출이 아니라
+`preventDefault()` 후 `fetch()`로 직접 POST한다 - `site/layout.html`의
+전역 `window.fetch` 몽키패치(스크립트 로드 순서상 이 파일보다 먼저
+실행됨)가 XSRF-TOKEN 쿠키를 X-XSRF-TOKEN 헤더로 이미 자동 첨부해주므로
+CSRF 히든 필드 자체가 애초에 불필요했다 - 이 컴포넌트도 동일하게
+`fetch()`로 제출하면 그만이라 review-form보다 오히려 쉬웠다.
+
+**실측 중 발견한 진짜 버그(review-form의 `.review-form { display: none; }`
+와 동일한 패턴)**: `yona.css`의 `.loginDialog .error { display: none; }`를
+원본은 `showError()`에서 `elLoginError.style.display = "block"`으로
+인라인 스타일로 직접 덮어썼다 - Vue의 `v-show`(보일 때 빈 값으로 되돌림)만
+으로는 이 전역 규칙을 이기지 못해, 실대치 검증 중 실제 로그인 실패
+시나리오에서 에러 메시지가 텍스트는 정확히 반영됐는데 화면에 전혀 안
+보이는 채로 재현됐다(`getComputedStyle().display`가 `"none"`으로 확인).
+`:style="{ display: errorVisible ? 'block' : 'none' }"`로 원본과 동일하게
+인라인 강제해 해결했다.
+
+**테스트 중 발견한 플랫폼 제약**: `document.location.reload`는 네이티브
+메서드라 JS에서 재할당해도 조용히 무시되고 실제 리로드가 그대로 일어난다
+(실측 확인) - 스모크 테스트에서 로그인 성공 케이스는 스텁으로 가로채는
+대신 실제 페이지 리로드 발생 자체를 `waitForLoadState`로 검증하고, 요청
+URL/헤더/바디 검증은 리로드가 없는 실패 시나리오 쪽에서 안전하게 했다.
+
+**실대치 검증**: 실제 익명 세션에서 홈 화면의 실제 "Log in" 링크를 클릭해
+다이얼로그가 실제 `document.body`의 라이트 DOM 자식으로 teleport되어
+열리는지, 실제 틀린 비밀번호로 실제 서버 403 응답 + 실제 i18n 에러
+메시지("Your log in ID, E-mail or password is not valid.") + 실제 shake
+애니메이션이 재생되는지, 실제 올바른 비밀번호로 실제 로그인에 성공해
+페이지가 실제로 리로드되고 로그인 상태로 전환되는지(로그인 후에는
+`sec:authorize="isAnonymous()"`에 의해 `#loginDialog` 자체가 사라지는
+것까지)를 전부 실서버 화면에서 스크린샷으로 확인했다.
+
+**하위 호환**: `yona.LoginDialog.js`도 하이브리드 어댑터로 다시 썼다 -
+`#loginDialog`가 `<yona-login-dialog>`(태그명으로 판별)면 트리거
+델리게이트(`[data-login="required"]`)만 페이지 쪽에 남기고 `show(target)`
+으로 위임하며(트리거가 입력창이면 blur하는 원본 정책도 위임 인자로
+그대로 전달), 그렇지 않으면 원본 vanilla `_initElement`/`_attachEvent`
+전체가 처리한다.
+
 ## 진짜로 여기서 마감한 후보들
 
-열 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
-어태치먼트/review-form/pagination)을 거치며 배운 것: "위젯 경계가 없다"는
-판단은 거의 항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/Attachments/
-review-form 다섯 다 처음엔 이 목록에 있었지만 전부 실제로 구현·실대치
-검증까지 마쳤다(pagination은 처음부터 위젯 경계가 명확해 이 목록에 있던
-적이 없다). 아래는 그중 실제로 조사해도 위젯 경계 자체가 없거나(Tabs/Mergely는
-아예 죽은 코드) 자체 템플릿이 없는(Calendar/TomSelect) `yona.ui.*` 계열
-경우만 남았다.
+열한 위젯(에디터/도움말/토스트/스위치/드롭다운/다이얼로그/타입어헤드/
+어태치먼트/review-form/pagination/login-dialog)을 거치며 배운 것: "위젯
+경계가 없다"는 판단은 거의 항상 검증 부족이었다 - Dialog/Dropdown/Typeahead/
+Attachments/review-form 다섯 다 처음엔 이 목록에 있었지만 전부 실제로
+구현·실대치 검증까지 마쳤다(pagination/login-dialog는 처음부터 위젯
+경계가 명확해 이 목록에 있던 적이 없다). 아래는 그중 실제로 조사해도
+위젯 경계 자체가 없거나(Tabs/Mergely는 아예 죽은 코드) 자체 템플릿이
+없는(Calendar/TomSelect) `yona.ui.*` 계열 경우만 남았다.
 
 **`common/`/`service/` 전체(77개 파일)를 대상으로 한 최신 전수조사**는
 [docs/widget-candidates.md](docs/widget-candidates.md)에 별도로 정리했다 -
@@ -549,30 +613,32 @@ npm run dev
 
 ```
 npm run build           # 데모 앱 전체를 정적 산출물로(dist/)
-npm run build:elements  # 열 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
+npm run build:elements  # 열한 위젯을 <yona-markdown-editor-vue>/<yona-help-markdown>/
                          # <yona-toast>/<yona-switch>/<yona-dropdown>/<yona-dialog>/
                          # <yona-typeahead>/<yona-attachments>/<yona-review-form>/
-                         # <yona-pagination> 네이티브 커스텀 엘리먼트로 한 번에
-                         # (dist-element/, es 모듈 포맷 - 엔트리 10개 + 위젯들이
-                         # 공유하는 청크 - 청크 파일명은 빌드마다 바뀔 수 있다)
+                         # <yona-pagination>/<yona-login-dialog> 네이티브 커스텀
+                         # 엘리먼트로 한 번에(dist-element/, es 모듈 포맷 - 엔트리
+                         # 11개 + 위젯들이 공유하는 청크 - 청크 파일명은 빌드마다
+                         # 바뀔 수 있다)
 npm run typecheck
 ```
 
 ## yona에 실제로 꽂아 쓰려면
 
-`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 10개
+`npm run build:elements`가 만든 `dist-element/` 안의 파일 **전부**(엔트리 11개
 `yona-markdown-editor-vue-element.js`/`yona-help-markdown-element.js`/
 `yona-toast-element.js`/`yona-switch-element.js`/`yona-dropdown-element.js`/
 `yona-dialog-element.js`/`yona-typeahead-element.js`/`yona-attachments-element.js`/
-`yona-review-form-element.js`/`yona-pagination-element.js` + 공유 청크 - 엔트리들이
+`yona-review-form-element.js`/`yona-pagination-element.js`/
+`yona-login-dialog-element.js` + 공유 청크 - 엔트리들이
 상대 경로 `import`로 참조하므로 같은 디렉터리에 같이 있어야 한다)를 yona
 저장소에 vendoring하고, 템플릿에 해당 태그(`<yona-markdown-editor-vue>`/`<yona-help-markdown>`/
 `<yona-toast>`/`<yona-switch>`/`<yona-dropdown>`/`<yona-dialog>`/
-`<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>`/`<yona-pagination>`
-- 단, `<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고 `yona.ui.Typeahead.js`
-어댑터가, `<yona-pagination>`도 정적 템플릿에 쓰지 않고 `yona.Pagination.js`
-어댑터가 기존 `<div id="pagination">`을 그 자리에서 감싼다)와
-**`<script type="module">`**을 넣으면 됩니다(각 위젯
+`<yona-typeahead>`/`<yona-attachments>`/`<yona-review-form>`/`<yona-pagination>`/
+`<yona-login-dialog>` - 단, `<yona-typeahead>`는 정적 템플릿에 직접 쓰지 않고
+`yona.ui.Typeahead.js` 어댑터가, `<yona-pagination>`도 정적 템플릿에 쓰지 않고
+`yona.Pagination.js` 어댑터가 기존 `<div id="pagination">`을 그 자리에서
+감싼다)와 **`<script type="module">`**을 넣으면 됩니다(각 위젯
 구현의 세부 props/계약은 git 이력의 개별 README 및 이 파일의 각 위젯 절 참고).
 커스텀 엘리먼트들은 서로 무관하므로 일부만 먼저 반영해도 문제 없습니다 - 공유
 청크만 같이 복사하면 됩니다.
@@ -674,8 +740,19 @@ review-form은 라이트 DOM 조작이나 DOM 생성/Teleport 자체가 핵심�
   네비게이션 없이 콜백만 호출되는지, (f) 동기 모드에서 실제로 next 링크
   클릭/입력 후 Enter로 실제 브라우저 URL이 `pageNum` 파라미터와 함께
   네비게이션되는지(모킹 없이 real navigation) 확인.
+- `login-dialog-element.mjs`: `dist-element/yona-login-dialog-element.js`를 정적
+  HTML(`login-dialog-element.html`, `<script type="module">` + `[data-login="required"]`
+  트리거)에 로드해 (a) `<Teleport to="body">`로 `<dialog>`가 실제 body 직계
+  자식이 되고 shadow DOM 안에는 없는지, (b) `show()` 재호출 시 이전 입력값이
+  초기화되고 Messages()로 실제 i18n 라벨이 반영되는지, (c) 트리거가 입력창/
+  텍스트영역이면 `show()` 호출로 실제 blur되는지, (d) 배경 클릭·X 닫기 버튼
+  클릭으로 실제 닫히는지, (e) `useSocialLoginOnly=true`면 로컬 로그인 필드
+  대신 경고 문구만 보이는지, (f) 실제 `fetch()` 제출이 네트워크 에러/서버
+  JSON 에러 메시지(Messages()로 변환)/성공(실제 페이지 리로드) 세 경로 모두
+  올바르게 동작하는지(성공 케이스는 `document.location.reload`를 JS로 가로챌
+  수 없다는 실측 결과에 따라 실제 리로드 발생 자체를 확인) 확인.
 
-`*-element.mjs` 열 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
+`*-element.mjs` 열한 개는 `npm run build:elements`를 먼저 실행해야 합니다. 또한 es 모듈
 포맷이라 `element.html`을 `file://`로 직접 열면 module script의 상대 임포트(공유 청크)가
 CORS로 막힙니다(실측 확인) - 그래서 세 스크립트 다 Vite 개발 서버로 `dist-element/`가
 포함된 프로젝트 루트를 잠깐 정적 서빙한 뒤 `http://localhost:<port>/smoke-test/

@@ -5,11 +5,12 @@
 재조사한 결과다. common/은 이 세션에서 두 번째 전수조사(첫 조사에서 놓친 Tooltip/Popover
 시스템을 새로 발견), service/는 이번이 첫 조사다.
 
-**이미 이식 완료(10개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
+**이미 이식 완료(11개, 별도 문서화 안 함 - `../README.md` 참고)**: 마크다운 에디터, 도움말
 패널, 토스트(`yona.ui.Toast.js`), 스위치(`yona.ui.Switch.js`), 드롭다운(`yona.ui.Dropdown.js`),
 다이얼로그(`yona.ui.Dialog.js`), 타입어헤드(`yona.ui.Typeahead.js`), 첨부파일
 (`yona.Attachments.js`), review-form(`yona.CodeCommentBox.js`), pagination
-(`yona.Pagination.js`).
+(`yona.Pagination.js`), **login-dialog(`yona.LoginDialog.js`, 2026-09-15 완료 - 아래
+1번이었던 항목)**.
 
 ## 진짜 위젯 후보 (권장 착수 순서)
 
@@ -17,23 +18,12 @@
 지금까지 이 세션에서 "쉬운 것부터 실전 감각을 쌓고 review-form처럼 큰 것에 도전" 해온
 패턴과 맞는다.
 
-### 1. `yona.LoginDialog.js` (166줄) — 난이도 낮음-중간
+### ~~1. `yona.LoginDialog.js`~~ — 이식 완료(`../README.md`의 "login-dialog 위젯" 절 참고)
 
-`site/layout.html`의 익명 사용자용 `#loginDialog`(네이티브 `<dialog>`). 이미 이식한
-`yona.ui.Dialog.js`와 같은 네이티브 `<dialog>` 계열이라 선례가 있다. 전역 델리게이트
-`[data-login="required"]`가 실사용 6개 파일(`board/view.html`, `common/child_commentForm.html`,
-`common/commentForm.html`, `error/forbidden.html`, `site/layout.html`×2)에서 트리거한다.
-
-**재검증으로 뒤집힌 사실**: 이전 조사에서는 review-form 때 겪은 "`:action` 바인딩 폼은
-Thymeleaf 자동 CSRF 주입을 못 받아 403" 함정이 재현될 것으로 예상했다. 실제로 파일을
-다시 읽어보니 `_onSubmitForm`이 `preventDefault()` 후 **`fetch()`로 직접 POST**한다(네이티브
-폼 제출이 아님) - `layout.html`의 전역 `window.fetch` 몽키패치(802행대, `XSRF-TOKEN` 쿠키를
-`X-XSRF-TOKEN` 헤더로 자동 첨부)가 스크립트 로드 순서상 먼저 실행되므로 **CSRF는 이미
-투명하게 처리된다**. Vue 컴포넌트도 동일하게 `fetch()`로 제출하면 되므로 review-form보다
-오히려 쉽다.
-
-경계: 폼 전체(고정 마크업)+에러 표시+shake 애니메이션은 Shadow DOM, 트리거 델리게이트는
-페이지(전역 스크립트) 소유로 남긴다.
+실제로는 예상보다 쉬웠다(CSRF 재검증 결과 review-form과 같은 403 함정이 없었음이 확인됨) -
+대신 review-form의 `.review-form { display: none; }`와 똑같은 패턴의 버그
+(`.loginDialog .error { display: none; }`를 `v-show`만으로는 못 이김)를 실측 중 새로
+발견해 고쳤다. 자세한 내용은 README 참고.
 
 ### 2. `yona.ScrollElevator.js` (154줄) — 난이도 낮음
 
