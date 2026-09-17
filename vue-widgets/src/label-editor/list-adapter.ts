@@ -1,10 +1,6 @@
-// yona.issue.LabelEditor.js의 라벨 목록(#labelsList) 위임 클릭 처리 + 삭제
-// 흐름만 뽑아 다시 썼다 - "트리거는 원래 살던 곳에 남는다"는 Dropdown 이후
-// 확립된 경계 판단 그대로: 목록 자체(삭제/수정/카테고리수정 버튼)는 서버가
-// 렌더링한 그대로 vanilla로 남고, 이 어댑터는 그 위임 리스너 + 세 커스텀
-// 엘리먼트(<yona-label-edit-dialog>/<yona-category-edit-dialog>) 호출 +
-// 삭제 성공 후 DOM 정리(행/빈 카테고리 제거)만 담당한다. 새 라벨 폼
-// (<yona-new-label-form>)은 목록을 건드리지 않으므로 이 어댑터가 알 필요 없다.
+// 라벨 목록(#labelsList) 자체는 서버가 렌더링한 그대로 vanilla로 남고, 이
+// 어댑터는 위임 클릭 리스너 + 다이얼로그 커스텀 엘리먼트 호출 + 삭제 성공 후
+// DOM 정리(행/빈 카테고리 제거)만 담당한다.
 import { getData } from "./data";
 import { msg } from "./messages";
 import { toRequestParams } from "./request";
@@ -61,10 +57,9 @@ async function requestRemoveLabel(target: HTMLElement): Promise<void> {
 }
 
 function onClickDeleteButton(target: HTMLElement): void {
-  // $yona.confirm(원본이 쓰는 것)은 aButtonLabels를 안 주면 [취소, 확인]
-  // 두 버튼을 기본값으로 깐다(확인=index 1) - <yona-dialog>.show() 자체는
-  // aButtonLabels 없이 부르면 확인 버튼 1개짜리 alert 모드가 되므로, 여기서
-  // 명시적으로 같은 기본값을 재현해야 한다(YonaDialog.vue의 확립된 계약).
+  // <yona-dialog>.show()는 aButtonLabels 없이 부르면 확인 버튼 1개짜리 alert
+  // 모드가 된다 - [취소, 확인] 2버튼 확인 다이얼로그를 띄우려면 여기서
+  // 명시적으로 aButtonLabels를 줘야 한다(확인=index 1).
   getDialog()?.show(msg("label.confirm.delete"), "", {
     aButtonLabels: [msg("button.cancel"), msg("button.confirm")],
     fOnClickButton: ({ nButtonIndex }: { nButtonIndex: number }) => {

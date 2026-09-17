@@ -1,11 +1,6 @@
-// 3단계(툴바 + CSS 테마 계약) 스모크 테스트.
-// 확인 항목: 9개 툴바 커맨드가 실제 클릭+키보드 선택(사용자 상호작용과 최대한 가깝게)으로
-// 기대한 마크다운 텍스트를 만들어내는지, preview placeholder가 문서를 건드리지 않는지, 콘솔
-// 에러가 없는지. 이 저장소는 yona 본체와 완전히 분리돼 있으므로(README 참고) 실제 yona 서버
-// 없이 격리된 정적 HTML(toolbar.html)만으로 검증한다 - yobicon 아이콘 폰트(@font-face)는 yona
-// 쪽에만 전역 등록되어 있어 이 페이지에서는 아이콘이 tofu 박스로 보일 수 있지만(정상), 그건
-// 이 스모크 테스트의 검증 범위가 아니다(아이콘 렌더링은 yona 실서버 기준 Playwright 실증에서
-// 확인 - P3-46 티켓 문서 참고).
+// 툴바 + CSS 테마 계약 스모크 테스트 - yona 본체와 분리된 정적 HTML(toolbar.html)만으로
+// 검증한다. yobicon 아이콘 폰트는 yona 쪽에만 전역 등록돼 있어 이 페이지에서는 아이콘이 tofu
+// 박스로 보일 수 있지만 정상이며, 이 테스트의 검증 범위가 아니다.
 import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -23,8 +18,7 @@ page.on("pageerror", (err) => consoleErrors.push(String(err)));
 await page.goto(pageUrl);
 
 async function runCase(initialText, buttonPart) {
-  // 6단계: jQuery data(...) shim이 걷어내지고 컴포넌트 자신의 .value
-  // getter/setter로 대체됐다 - 이 스모크 테스트도 그 네이티브 프로퍼티를 직접 쓴다.
+  // jQuery data(...) shim이 걷어내진 뒤라 컴포넌트의 .value 네이티브 프로퍼티를 직접 쓴다.
   await page.evaluate((initialText) => {
     const el = document.querySelector("yona-markdown-editor");
     el.value = initialText;

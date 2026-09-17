@@ -1,17 +1,7 @@
-// defineCustomElement 빌드(vite.element.config.ts -> dist-element/
-// yona-markdown-editor-vue-element.js) 스모크 테스트.
-//
-// yona 쪽에 실제로 벤더링하는 형태(Vue 앱 부트스트랩 없이 태그 하나로 정적 HTML에 꽂기)와
-// 동일한 방식으로 element.html에 로드해, (a) 콘솔 에러 없이 정의되는지, (b) shadowRoot가
-// attach되는지, (c) defineExpose된 getValue/setValue가 실제 커스텀 엘리먼트 인스턴스에서
-// 호출 가능한지, (d) 그 값이 shadow 안의 light-DOM 호환 textarea(name/value)와 동기화되는지
-// 확인한다.
-//
-// es 모듈 포맷으로 바꾼 뒤(vite.element.config.ts 참고)로는 file:// 프로토콜로 직접 열 수
-// 없다 - 브라우저가 file:// 오리진에서의 module script 상대 임포트(공유 청크 등)를 CORS로
-// 막는다("Cross origin requests are only supported for protocol schemes: http, https, ...",
-// 실측으로 확인). yona 실서비스는 항상 http(s)로 서빙되니 문제 없지만, 이 스모크 테스트는
-// 로컬 정적 서버를 하나 띄워 http://로 열어야 한다.
+// defineCustomElement 빌드(dist-element/yona-markdown-editor-vue-element.js) 스모크 테스트.
+// es 모듈 포맷이라 file://로 직접 열면 브라우저가 상대 임포트를 CORS로 막는다("Cross origin
+// requests are only supported for protocol schemes: http, https, ...") - 로컬 정적 서버로
+// http://로 열어야 한다.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 

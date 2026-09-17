@@ -2,8 +2,7 @@
 <html lang="ko">
 <head><meta charset="UTF-8" /><title>defineCustomElement 스모크 테스트</title>
 <style>
-  /* .label-editor-wrap 조상 스코프 CSS - "Teleport to self"가 실제로 라이트 DOM
-     자식을 만들어 이 규칙이 먹는지 검증하는 용도(실측: 안 먹으면 배경이 안 보임). */
+  /* "Teleport to self"가 실제 라이트 DOM 자식을 만들어야 이 조상 스코프 CSS가 먹는다. */
   .label-editor-wrap .new-label-wrap { background: rgb(17, 17, 17); }
 </style>
 </head>

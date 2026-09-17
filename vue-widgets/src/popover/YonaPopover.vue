@@ -1,29 +1,23 @@
 <script setup lang="ts">
-// yona.Common.js의 툴팁/팝오버 플로팅 위치 시스템(showTooltip/hideTooltip,
-// showPopoverError/hidePopoverError, initHoverPopovers) 세 계약을 하나의 싱글턴
-// 위젯으로 다시 썼다 - 셋 다 내부적으로 같은 위치 계산(_positionPopoverElement/
-// _getPopoverContainer)을 공유한다는 원본 주석을 그대로 따른 통합이다.
+// yona.Common.js의 툴팁/팝오버 위치 시스템(showTooltip/hideTooltip,
+// showPopoverError/hidePopoverError, initHoverPopovers)을 하나의 싱글턴 위젯으로
+// 통합했다 - 원본에서도 셋이 같은 위치 계산(_positionPopoverElement/
+// _getPopoverContainer)을 공유한다.
 //
-// **범위 - 트리거는 이 위젯 소유가 아니다**: `showTooltip`/`hideTooltip`은
-// site/layout.html의 전역 mouseenter/mouseleave/focus/blur 델리게이트가
-// `[data-toggle="tooltip"]`을 찾아 호출한다(Dropdown과 동일한 "전역 델리게이트가
-// 트리거를 소유"하는 경계 판단) - 이 위젯은 호출받으면 그릴 뿐, 트리거 스캔 자체는
-// 페이지(어댑터) 쪽에 그대로 남는다. `initHoverPopovers(selector)`만 예외적으로
-// 스스로 리스너를 붙이는데(원본도 그랬다), 그것도 "찾아서 붙인다"일 뿐 위젯
-// 외부의 다른 요소를 조작하지는 않는다.
+// 트리거 스캔은 이 위젯 소유가 아니다: showTooltip/hideTooltip은
+// site/layout.html의 전역 델리게이트가 호출한다. initHoverPopovers(selector)만
+// 예외적으로 스스로 리스너를 붙인다(원본도 동일).
 //
-// **`<Teleport>`를 동적 대상으로 사용 - CSS 포팅 회피 + dialog-awareness 동시
-// 해결**: 원본이 `.tooltip`/`.popover`(bootstrap.css) 마크업을 그대로 쓰므로
-// Shadow DOM에 두면 그 전역 CSS 전체를 이식해야 했다 - Teleport로 실제 라이트
-// DOM에 그리면 이식이 전혀 필요 없다. 게다가 원본의 `_getPopoverContainer`가
-// "트리거가 열린 `<dialog>` 안에 있으면 그 dialog를 부모로 써야 한다"(네이티브
-// `<dialog>`는 top layer에서 그려져 일반 z-index로는 못 이긴다)는 요구사항도
-// Teleport의 `:to`를 트리거마다 동적으로(body 또는 그 dialog) 바꾸는 것만으로
-// 자연스럽게 해결된다.
+// `<Teleport>`로 라이트 DOM(body 또는 열린 dialog)에 그린다: 원본이
+// `.tooltip`/`.popover`(bootstrap.css) 마크업을 쓰므로 Shadow DOM에 두면 그 CSS를
+// 통째로 이식해야 했을 것이다. 또한 네이티브 `<dialog>`는 top layer에서 그려져
+// 일반 z-index로 못 이기므로, 트리거가 열린 dialog 안에 있으면 그 dialog를
+// 부모로 써야 한다(원본 _getPopoverContainer 요구사항) - `:to`를 트리거마다
+// 동적으로 바꾸는 것으로 해결했다.
 //
-// **id를 host에 주지 않는다**: page-slide에서 실측으로 확인한 함정("하위 호환을
-// 위해 원본과 같은 id를 host에 주면 그 id를 겨냥한 전역 CSS와 충돌할 수 있다")을
-// 이번엔 처음부터 피한다 - 어댑터가 클로저 변수로 싱글턴 엘리먼트를 캐싱한다.
+// host에는 id를 주지 않는다 - page-slide에서 확인했듯 원본과 같은 id를 주면 그
+// id를 겨냥한 전역 CSS와 충돌할 수 있다. 어댑터가 클로저 변수로 싱글턴 엘리먼트를
+// 캐싱한다.
 import { nextTick, reactive } from "vue";
 import { computeContainerRelativeOffset, computeFloatPosition } from "./popover";
 

@@ -1,9 +1,8 @@
-// defineCustomElement 빌드(dist-element/yona-review-form-element.js) 스모크 테스트 -
-// toast-element.mjs/dropdown-element.mjs와 동일한 이유/방식. yona.code.Diff.js(861줄,
-// 실제 diff 뷰 렌더링)는 이 스모크 테스트의 대상이 아니다 - 원본 CodeCommentBox.js가
-// 받는 정확한 계약(data-line을 가진 <tr>, data-thread-id를 가진 버튼)만 재현한
-// 합성 마크업으로 이 위젯 자신의 동작(Teleport 재배치/새 인스턴스 강제/hidden
-// 필드 계산/show-hide-toggle API)을 검증한다.
+// defineCustomElement 빌드(dist-element/yona-review-form-element.js) 스모크 테스트.
+// yona.code.Diff.js(실제 diff 뷰 렌더링)는 대상이 아니다 - 원본 CodeCommentBox.js가
+// 받는 계약(data-line을 가진 <tr>, data-thread-id를 가진 버튼)만 합성 마크업으로
+// 재현해 이 위젯 자신의 동작(Teleport 재배치/새 인스턴스 강제/hidden 필드 계산/
+// show-hide-toggle API)을 검증한다.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
@@ -25,12 +24,8 @@ page.on("pageerror", (err) => errors.push(String(err)));
 await page.goto(pageUrl);
 await page.waitForFunction(() => document.querySelector("yona-review-form")?.shadowRoot);
 
-// 1. 새 댓글(data-line을 가진 tr) - show() 호출 시 실제로 새 tr.comment-form을 만들고
-//    그 안으로 실제 라이트 DOM에 텔레포트되는지, blockInfo가 hidden 필드로 정확히
-//    변환되는지 확인.
-// 주의: show()는 동기 함수지만 실제 텔레포트된 DOM 반영은 Vue의 반응형 렌더 사이클
-// (마이크로태스크)을 거친다 - 호출 직후 곧바로 확인하면 아직 반영 전이라 false negative가
-// 난다(실측 확인). 호출과 확인 사이에 한 틱 기다린다.
+// show()는 동기 함수지만 텔레포트된 DOM 반영은 Vue의 반응형 렌더 사이클(마이크로태스크)을
+// 거친다 - 호출 직후 곧바로 확인하면 아직 반영 전이라 false negative가 난다.
 await page.evaluate(() => {
   const el = document.querySelector("yona-review-form");
   const target = document.getElementById("line5");
@@ -64,7 +59,6 @@ const afterShowNew = await page.evaluate(() => {
   };
 });
 
-// 2. 실제 에디터에 타이핑 후 hide() -> 실제로 임시 tr이 제거되는지
 await page.locator("yona-markdown-editor-vue .cm-content").click();
 await page.keyboard.type("첫 번째 임시 댓글 초안");
 await page.waitForTimeout(100);
@@ -81,9 +75,6 @@ const afterTypeThenHide = await page.evaluate(() => {
   };
 });
 
-// 3. 답글(data-thread-id를 가진 버튼) - 기존 .comment-thread-wrap의 .write-comment-form
-//    으로 실제 텔레포트되는지, 그 컨테이너 자체는 제거되지 않는지, thread.id 필드가
-//    정확히 반영되는지, 매번 완전히 새 에디터 인스턴스라 이전 초안이 안 남는지 확인.
 await page.evaluate(() => {
   const el = document.querySelector("yona-review-form");
   const btn = document.getElementById("reply-btn");
@@ -109,14 +100,12 @@ const editorEmptyOnReopen = await page.evaluate(() => {
   return editor.value;
 });
 
-// 4. hide() 후 스레드 컨테이너 자체는 그대로 남아있는지(임시 tr과 달리 제거되면 안 됨)
 const afterHideReply = await page.evaluate(() => {
   const el = document.querySelector("yona-review-form");
   el.hide();
   return { threadWrapStillExists: !!document.getElementById("thread-1") };
 });
 
-// 5. toggle()로 열림/닫힘 전환
 const toggleResult = await page.evaluate(() => {
   const el = document.querySelector("yona-review-form");
   const target = document.getElementById("line5");
@@ -127,7 +116,6 @@ const toggleResult = await page.evaluate(() => {
   return { firstToggle, secondToggle };
 });
 
-// 6. 닫기(X) 버튼 실제 클릭으로 hide()가 호출되는지
 await page.evaluate(() => {
   document.querySelector("yona-review-form").show(document.getElementById("line5"), { sPlacement: "bottom" });
 });
@@ -140,9 +128,9 @@ const checks = [
   ["새 댓글: 실제로 새 tr.comment-form 생성", afterShowNew.createdNewTr === true],
   ["새 댓글: review-form이 실제로 그 tr 안에 텔레포트됨(라이트 DOM)", afterShowNew.reviewFormInsideNewTr === true],
   ["새 댓글: bottom 배치 시 화살표가 위쪽(arrow-top)", afterShowNew.arrowClass?.includes("arrow-top")],
-  // hiddenInputs에는 review-form 자신의 필드 외에 중첩된 <yona-attachments>가 스스로
-  // 만드는 temporaryUploadFiles도 함께 잡힌다(진짜 라이트 DOM 자식이라 정상 - Dialog/
-  // Dropdown 검증 때와 동일한 이유) - 정확한 부분집합 포함 여부로 확인한다.
+  // hiddenInputs에는 review-form 필드 외에 중첩된 <yona-attachments>가 만드는
+  // temporaryUploadFiles도 함께 잡힌다(라이트 DOM 자식이라 정상) - 부분집합
+  // 포함 여부로만 확인한다.
   ["새 댓글: blockInfo가 hidden 필드로 정확히 변환(startLine/startSide/endLine/endSide)",
     [["endLine", "5"], ["endSide", "B"], ["startLine", "3"], ["startSide", "A"]]
       .every(([n, v]) => afterShowNew.hiddenInputs.some(([an, av]) => an === n && av === v))],

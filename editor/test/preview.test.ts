@@ -1,8 +1,8 @@
-// yona-markdown-editor 4단계(미리보기) preview.ts 단위 테스트.
+// preview.ts 단위 테스트.
 //
 // RequestSequencer(순수 로직)와 PreviewController(fetch/panel/hljs를 전부 주입 가능하게 설계된
-// 얇은 DOM 글루)를 Node 환경에서 직접 검증한다 - Shadow DOM 안에서 실제로 버튼을 눌러 패널이
-// 토글되는지는 Playwright가 1차 검증 수단(commands.test.ts와 동일한 분리 원칙).
+// 얇은 DOM 글루)를 Node 환경에서 직접 검증한다 - Shadow DOM 안에서 버튼을 눌러 패널이
+// 토글되는지는 Playwright가 담당한다(commands.test.ts와 동일한 분리 원칙).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestSequencer, PreviewController, type HljsLike } from "../src/preview.js";

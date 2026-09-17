@@ -1,5 +1,3 @@
-// defineCustomElement 빌드(dist-element/yona-dropdown-element.js) 스모크 테스트 -
-// toast-element.mjs/switch-element.mjs와 동일한 이유/방식.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
@@ -21,18 +19,15 @@ page.on("pageerror", (err) => errors.push(String(err)));
 await page.goto(pageUrl);
 await page.waitForFunction(() => document.querySelector("yona-dropdown")?.shadowRoot);
 
-// 0. 버튼/목록이 여전히 document 레벨에서 검색 가능(라이트 DOM 유지 - 전역
-//    [data-toggle="dropdown"] 델리게이트가 실제 yona에서 이걸로 찾는다)
+// 라이트 DOM 유지 - 전역 [data-toggle="dropdown"] 델리게이트가 실제 yona에서 이걸로 찾는다.
 const discoverable = await page.evaluate(() => !!document.querySelector('[data-toggle="dropdown"]'));
 
-// 1. data-selected=true 기본값이 마운트 시 자동 선택되는지(_selectDefault)
 const initial = await page.evaluate(() => ({
   label: document.querySelector(".d-label").textContent,
   hiddenValue: document.querySelector('input[name="state"]')?.value,
   activeItem: document.querySelector("li.active")?.getAttribute("data-value"),
 }));
 
-// 2. 실제 클릭으로 다른 항목 선택
 await page.locator('li[data-value="OPEN"] a').click();
 await page.waitForTimeout(50);
 const afterClick = await page.evaluate(() => ({
@@ -41,7 +36,6 @@ const afterClick = await page.evaluate(() => ({
   activeItem: document.querySelector("li.active")?.getAttribute("data-value"),
 }));
 
-// 3. defineExpose된 getValue/onChange/selectByValue 확인
 const exposed = await page.evaluate(() => {
   const el = document.querySelector("yona-dropdown");
   let changedTo = null;

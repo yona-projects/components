@@ -30,8 +30,7 @@ test("isNumeric: 배열/빈 문자열/숫자 아닌 문자열은 false", () => {
 test("looksLikeExplicitCurrent: 원본 rxDigit(/^.[0-9]*$/)와 동일하게 첫 글자는 아무거나 허용", () => {
   assert.equal(looksLikeExplicitCurrent("5"), true);
   assert.equal(looksLikeExplicitCurrent("55"), true);
-  // 원본 정규식 자체의 특성(주석은 "positive만"이라 하지만 실제로는 첫 글자가
-  // 무엇이든 허용) - 재구현도 원본과 동일한 결과를 내야 한다.
+  // 원본 rxDigit은 실제로 첫 글자가 무엇이든 허용한다(주석은 "positive만"이라 하지만) - 재구현도 동일해야 함.
   assert.equal(looksLikeExplicitCurrent("-5"), true);
 });
 
@@ -100,10 +99,8 @@ test("resolvePaginationState: current 생략 시 url의 쿼리에서 읽는다",
 });
 
 test("resolvePaginationState: current가 숫자가 아니면 원본과 동일하게 에러를 던진다", () => {
-  // "x5"는 rxDigit(첫 글자 아무거나 + 뒤는 숫자)은 통과해 URL에서 다시 읽지 않고
-  // 그대로 쓰이지만, isNumeric은 실패하는 값이라 원본의 validateOptions가 실제로
-  // 에러를 던지는 경로다("not-a-number"처럼 rxDigit 자체가 실패하는 값은 URL에서
-  // 다시 읽어오므로 여기까지 오지 않는다 - 원본 로직 그대로).
+  // "x5"는 rxDigit은 통과해 그대로 쓰이지만 isNumeric은 실패하는 값이라, validateOptions가
+  // 실제로 에러를 던지는 경로다(rxDigit 자체가 실패하는 값은 URL에서 다시 읽어오므로 여기 오지 않음).
   assert.throws(() => resolvePaginationState(10, { current: "x5", url: BASE }, BASE), /options.current is not valid/);
 });
 

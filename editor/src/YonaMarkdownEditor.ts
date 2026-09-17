@@ -1,52 +1,14 @@
-// yona-markdown-editor 2~3단계(셸: 폼 통합 + 기본 편집 / 툴바 + CSS 테마 계약).
+// yona-markdown-editor - Shadow DOM에 마운트된 CodeMirror 6 에디터를 light DOM <textarea>와
+// 동기화하는 커스텀 엘리먼트.
 //
-// 2단계 목표는 딱 세 가지였다:
-//   1) light DOM에 기존 markdownEditor 프래그먼트의 <textarea> 계약(name/id(editor- 접두어)/
-//      data-editor-mode/markdown="true")을 그대로 재현한 실제 <textarea>를 렌더링한다 — 기존
-//      폼 제출 코드(jQuery Form Plugin ajaxSubmit, raw $.ajax 등)가 지금처럼 이 textarea의
-//      DOM value를 그대로 읽을 수 있어야 한다.
-//   2) Shadow DOM 안에 CodeMirror 6 EditorView를 마운트한다(0단계 스파이크에서 Chromium/
-//      Firefox/WebKit 3개 엔진 전부 검증된 방식 그대로 — root 옵션 등).
-//   3) CM6 문서가 바뀔 때마다 light DOM textarea.value를 갱신하고 input/keyup 네이티브 이벤트를
-//      재발행한다(yobi.ui.MarkdownEditor.js의 `codemirror.on("change", ...)` 패턴과 동일 —
-//      임시저장 시스템이 이 이벤트에 의존).
+// light DOM textarea는 기존 markdownEditor 프래그먼트의 계약(name/id(editor- 접두어)/
+// data-editor-mode/markdown="true")을 그대로 유지한다 - 기존 폼 제출 코드(jQuery Form Plugin
+// ajaxSubmit, raw $.ajax 등)가 이 textarea의 DOM value를 읽기 때문이다. CM6 문서가 바뀌면
+// textarea.value를 갱신하고 input/keyup 네이티브 이벤트를 재발행한다(임시저장 시스템이 이
+// 이벤트에 의존).
 //
-// 3단계에서 추가한 것: 9개 툴바 커맨드(src/toolbar.ts, src/commands.ts)와 ::part()/CSS 커스텀
-// 프로퍼티 테마 계약. Shadow DOM 내부 구조가
-//   <style>...</style> <div part="toolbar">...</div> <div part="editor">(CM6 mount)</div>
-// 로 바뀌었다 - EditorView의 parent가 shadow 루트 자체에서 "editor" wrapper div로 바뀌었을 뿐,
-// root 옵션(0단계에서 검증된 셀렉션/포커스 동작)은 그대로 shadow를 가리킨다.
-//
-// 4단계에서 추가한 것: 미리보기 서버 렌더링 재연동(src/preview.ts). preview 툴바
-// 버튼을 누르면 CM6 에디터 뷰(part="editor")와 미리보기 패널(part="preview")을 서로
-// hidden 속성으로 토글한다(단일 뷰 토글 - side-by-side 아님). 켜지는
-// 시점과, 켜진 채로 문서가 바뀔 때마다 PreviewController.scheduleRender()를 호출한다(300ms
-// 디바운스 + 요청 순번 레이스가드는 preview.ts 참고).
-//
-// 5단계(이번 변경)에서 추가한 것: @codemirror/autocomplete 기반 멘션 자동완성(src/mention.ts) -
-// "@"(사용자)/":"(이모지)/"#"(이슈) 3트리거. markdownEditor 프래그먼트가 render-url과 동일한
-// 방식으로 노출하는 data-mention-url이 있을 때만(project 컨텍스트가 있는 화면 전부 - render-url과
-// 동일 게이트) 이 확장을 extensions 배열에 아예 추가한다 - 옛 yobi.Mention()이 페이지당 한 번만
-// 호출되어 "@"/":"/"#" 3개를 한꺼번에 켜거나 아예 안 켜던 것과 동일한 all-or-nothing 단위를
-// 유지하기 위해, mentionUrl이 없는 화면(project 컨텍스트 없는 화면 - 실사용처 없음)에서는 emoji
-// 트리거조차 등록하지 않는다. `yobi.Mention.js`는 이 단계에서 완전히 삭제됐다(로직은
-// mention.ts로 흡수).
-//
-// 6단계(jQuery 호환 shim 제거, yona 쪽 P3-70 jQuery 전면 제거 캠페인과 연계): 이전엔
-// yobi.Attachments.js/yona.CommentAttachmentsUpdate.js가 첨부파일 카드 클릭으로 본문에
-// 링크를 삽입할 때 $textarea.data(...) shim({ value(newValue?) })을 통해 raw
-// textarea.val() 조작 결과를 CodeMirror 쪽 버퍼에도 강제로 반영했다(안 그러면 다음 편집 시
-// CM이 자신의 예전 버퍼로 textarea를 덮어써 방금 넣은 링크가 사라진다 - P3-50에서 이미
-// 한번 고친 데이터 손실 버그, 이 컴포넌트의 이전 버전이 전용 메서드로 그 shim을
-// 노출했었다 - 지금은 삭제됐다).
-//
-// yona 쪽 jQuery 코어가 이제 완전히 제거돼(P3-70) 이 컴포넌트가 그 존재를 가정할 수 없게
-// 됐고, 애초에 jQuery의 `.data()` 정적 접근자 인디렉션 자체가 불필요했다 - 이 커스텀
-// 엘리먼트는 어차피 실제 DOM 엘리먼트 참조이므로, 소비자 코드가 jQuery 없이도
-// `textarea.closest('yona-markdown-editor')`로 직접 찾아 프로퍼티에 접근할 수 있다.
-// 그래서 jQuery data 키 shim을 완전히 걷어내고, 그 자리에 이 클래스 자신의 공개
-// `value` getter/setter(아래 참고)를 노출한다 - 소비자 쪽(yona.Attachments.js/
-// yona.CommentAttachmentsUpdate.js)도 이 네이티브 프로퍼티를 직접 읽고 쓰도록 갱신됐다.
+// 멘션 확장(mention.ts)은 data-mention-url이 있을 때만 등록한다 - "@"/":"/"#" 3트리거를 한
+// 단위로 켜고 끄던 옛 yobi.Mention() 동작을 유지하기 위해서다.
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -56,11 +18,11 @@ import { createToolbar, TOOLBAR_STYLES } from "./toolbar.js";
 import { PreviewController } from "./preview.js";
 import { createMentionExtension, MENTION_STYLES } from "./mention.js";
 
-// 여러 <yona-markdown-editor> 인스턴스가 한 페이지에 동시에 존재할 수 있다(예: issue/view의
-// 새 댓글 폼 + 기존 댓글 수정 폼들 - 2단계 깊이 중첩). 기존에는 서버(Thymeleaf)가
-// #strings.randomAlphanumeric(8)로 textarea id를 유일하게 만들었지만, 이제 textarea 자체를
-// 컴포넌트가 만들기 때문에 유일성 보장도 클라이언트 쪽(이 카운터)으로 옮긴다. 멘션 셀렉터
-// (textarea[id^=editor-])는 접두어만 보므로 정확한 접미어 생성 방식에는 의존하지 않는다.
+// 여러 <yona-markdown-editor> 인스턴스가 한 페이지에 동시에 존재할 수 있다(예: 새 댓글 폼 +
+// 기존 댓글 수정 폼들). 기존엔 서버가 #strings.randomAlphanumeric(8)로 textarea id를 유일하게
+// 만들었지만, 이제 textarea를 컴포넌트가 만들므로 유일성 보장도 클라이언트(이 카운터)로 옮긴다.
+// 멘션 셀렉터(textarea[id^=editor-])는 접두어만 보므로 정확한 접미어 생성 방식에는 의존하지
+// 않는다.
 let instanceCounter = 0;
 
 export class YonaMarkdownEditor extends HTMLElement {
@@ -83,10 +45,8 @@ export class YonaMarkdownEditor extends HTMLElement {
       return;
     }
 
-    // "value"는 슬롯 콘텐츠(서버가 th:text로 채워 넣는 이 엘리먼트의 텍스트 콘텐츠) 또는
-    // value 속성 중 하나로 온다 - value 속성이 명시적으로 있으면 그것을 우선한다.
-    // 인스턴스 필드로 보존해둔다(form.reset() 시 CM6 뷰를 이 값으로 되돌리기 위해 - 아래
-    // reset 리스너 등록 참고).
+    // "value"는 슬롯 콘텐츠(서버가 th:text로 채우는 텍스트 콘텐츠) 또는 value 속성 중 하나로
+    // 온다 - 속성이 있으면 그것을 우선한다.
     const initialValue = this.hasAttribute("value")
       ? (this.getAttribute("value") ?? "")
       : (this.textContent ?? "");
@@ -94,16 +54,14 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     const name = this.getAttribute("name") ?? "";
     const editorMode = this.getAttribute("editor-mode") ?? "";
-    // markdownEditor 프래그먼트(site/layout.html)는 이 커스텀 엘리먼트를 감싸는 바깥
-    // <div data-toggle="markdown-editor" th:data-markdown-render-url="...">에 렌더 URL을
-    // 노출한다(project 컨텍스트가 없는 화면은 이 속성 자체가 없다 - th:data-* 표현식이 null이면
-    // Thymeleaf가 속성을 렌더링하지 않는다, 8-2단계에서 이미 확인된 동작). closest()는 light
-    // DOM 조상을 그대로 타고 올라가므로 이 커스텀 엘리먼트가 light DOM에 있는 한 항상 동작한다.
+    // markdownEditor 프래그먼트(site/layout.html)가 감싸는
+    // <div data-toggle="markdown-editor" th:data-markdown-render-url="...">에서 렌더 URL을
+    // 읽는다 - project 컨텍스트가 없는 화면은 Thymeleaf가 null 표현식의 속성을 렌더링하지
+    // 않으므로 이 속성 자체가 없다.
     const renderUrl = this.closest('[data-toggle="markdown-editor"]')?.getAttribute(
       "data-markdown-render-url",
     ) ?? null;
-    // 5단계: 멘션 API URL도 render-url과 동일한 방식으로 노출된다(data-mention-url, 같은
-    // data-toggle="markdown-editor" wrapper - project 컨텍스트가 없으면 속성 자체가 없다).
+    // 멘션 API URL도 같은 wrapper의 data-mention-url로 노출된다(render URL과 동일한 게이트).
     const mentionUrl = this.closest('[data-toggle="markdown-editor"]')?.getAttribute(
       "data-mention-url",
     ) ?? null;
@@ -125,19 +83,16 @@ export class YonaMarkdownEditor extends HTMLElement {
     // 최초 로드 값으로 되돌리므로, 아래 reset 리스너는 CM6 쪽만 같은 값으로 맞춰주면 된다.
     textarea.defaultValue = initialValue;
     // Shadow DOM 안의 CM6가 실제 편집 UI를 담당하므로, light DOM textarea 자체는 화면에
-    // 보이지 않아도 된다 - 다만 폼 제출/멘션 셀렉터/임시저장 등은 이 textarea의
-    // DOM 존재와 값에 계속
-    // 의존하므로 DOM에서 제거하지 않고 숨기기만 한다.
+    // 보이지 않아도 된다 - 다만 폼 제출/멘션 셀렉터/임시저장 등은 이 textarea의 DOM 존재와
+    // 값에 계속 의존하므로 DOM에서 제거하지 않고 숨기기만 한다.
     textarea.style.display = "none";
     this.appendChild(textarea);
     this.textarea = textarea;
 
-    // 부모 <form>에서 form.reset()이 호출되면(사용자의 실수 클릭, 다른 스크립트의 명시적
-    // reset() 호출 등) 네이티브 reset이 위 textarea.value를 이미 defaultValue(initialValue)로
-    // 되돌린 "이후"에 이 리스너가 실행된다("reset" 이벤트는 필드들이 리셋된 이후에 버블링되어
-    // 발생한다) - 이제 Shadow DOM 안 CM6 뷰만 같은 initialValue로 맞춰주면 textarea와 에디터가
-    // 다시 일치한다. closest()는 light DOM 조상을 그대로 타고 올라가므로 이 커스텀 엘리먼트가
-    // light DOM에 있는 한 항상 동작한다(위 renderUrl/mentionUrl 조회와 동일한 근거).
+    // 부모 <form>에서 form.reset()이 호출되면, 네이티브 reset이 위 textarea.value를 이미
+    // defaultValue(initialValue)로 되돌린 "이후"에 이 리스너가 실행된다(reset 이벤트는 필드가
+    // 리셋된 뒤 버블링된다) - Shadow DOM 안 CM6 뷰만 같은 initialValue로 맞춰주면 textarea와
+    // 에디터가 다시 일치한다.
     const form = this.closest("form");
     if (form) {
       const handler = () => {
@@ -159,22 +114,20 @@ export class YonaMarkdownEditor extends HTMLElement {
     style.textContent = TOOLBAR_STYLES + MENTION_STYLES;
     shadow.appendChild(style);
 
-    // CM6 EditorView는 이 wrapper(part="editor")에 마운트한다 - shadow 루트 자체가 아니라
-    // 툴바 아래의 별도 컨테이너에 마운트해야 "툴바 위/에디터 아래" 레이아웃이 된다. root 옵션은
-    // 여전히 shadow를 가리킨다(0단계에서 검증된 셀렉션/포커스 동작 유지 - parent와 root는
-    // 서로 다른 개념: parent는 DOM 삽입 위치, root는 document.getSelection() 등을 대체할
-    // 때 쓰는 selection root).
+    // CM6 EditorView는 이 wrapper(part="editor")에 마운트한다 - shadow 루트가 아니라 툴바
+    // 아래 별도 컨테이너에 마운트해야 "툴바 위/에디터 아래" 레이아웃이 된다. root 옵션은 여전히
+    // shadow를 가리킨다(parent는 DOM 삽입 위치, root는 document.getSelection() 등을 대체하는
+    // selection root - 서로 다른 개념).
     const editorWrapper = document.createElement("div");
     editorWrapper.setAttribute("part", "editor");
     editorWrapper.className = "editor-wrapper";
     shadow.appendChild(editorWrapper);
     this.editorWrapper = editorWrapper;
 
-    // 미리보기 패널 - 기본은 숨김(에디터 뷰가 기본 표시). preview 버튼을 누르면 이 패널과
-    // editorWrapper가 서로 hidden을 토글한다(단일 뷰 토글 - side-by-side 아님).
-    // "markdown-wrap" 클래스는 사이트 전역 클래스명과 시맨틱을 맞추기 위해 그대로 부여해뒀지만,
-    // Shadow DOM 안에서는 전역 yobi.css가 닿지 않으므로 실제 시각 효과는 toolbar.ts의
-    // style 문자열에 .preview-wrap 셀렉터로 전체 재현해뒀다(사용자 확정, 2026-09-11).
+    // 미리보기 패널 - 기본은 숨김. preview 버튼을 누르면 이 패널과 editorWrapper가 서로
+    // hidden을 토글한다(단일 뷰 - side-by-side 아님). "markdown-wrap" 클래스는 시맨틱만 맞춘
+    // 것이고, Shadow DOM에는 전역 yobi.css가 닿지 않으므로 실제 스타일은 toolbar.ts의
+    // .preview-wrap 셀렉터로 재현해뒀다.
     const previewPanel = document.createElement("div");
     previewPanel.setAttribute("part", "preview");
     previewPanel.className = "preview-wrap markdown-wrap";
@@ -206,8 +159,8 @@ export class YonaMarkdownEditor extends HTMLElement {
         }
       }),
     ];
-    // mentionUrl이 없는 화면(project 컨텍스트 없음 - 실사용처 없음)에서는 이 확장 자체를 아예
-    // 추가하지 않는다(위 5단계 주석 참고 - "@"/":"/"#" 전부를 한 단위로 켜고 끈다).
+    // mentionUrl이 없는 화면에서는 확장 자체를 추가하지 않는다 - "@"/":"/"#" 3트리거를 한
+    // 단위로 켜고 끄던 옛 yobi.Mention() 동작 유지.
     if (mentionUrl) {
       extensions.push(createMentionExtension({ getMentionUrl: () => mentionUrl }));
     }
@@ -220,8 +173,8 @@ export class YonaMarkdownEditor extends HTMLElement {
 
     this.view = view;
 
-    // 툴바는 view가 만들어진 뒤에 붙인다(각 버튼 클릭 핸들러가 이 view를 직접 참조 - 3단계).
-    // 시각 순서(툴바가 에디터 위)를 맞추기 위해 이미 삽입된 editorWrapper 앞에 끼워 넣는다.
+    // 툴바는 view가 만들어진 뒤에 붙인다(버튼 클릭 핸들러가 view를 직접 참조). 시각 순서
+    // (툴바가 에디터 위)를 맞추기 위해 이미 삽입된 editorWrapper 앞에 끼워 넣는다.
     const toolbar = createToolbar(view, {
       onPreviewToggle: (active) => this.handlePreviewToggle(active),
     });
@@ -229,12 +182,10 @@ export class YonaMarkdownEditor extends HTMLElement {
   }
 
   /**
-   * 6단계: 이전 jQuery `.data(...)` shim이 노출하던 것과 정확히 동일한 계약(get: 현재
-   * CM6 문서 전체 문자열, set: 문서 전체를 새 문자열로 치환)을 이 클래스 자신의
-   * 공개 프로퍼티로 노출한다. 소비자(yona.Attachments.js/yona.CommentAttachmentsUpdate.js)는
-   * `textarea.closest('yona-markdown-editor')`로 이 엘리먼트를 직접 찾아
-   * `.value`/`.value = newValue`로 접근한다 - jQuery도, 데이터 키 인디렉션도 필요 없다.
-   * view가 아직 없으면(연결 전) get은 빈 문자열, set은 조용히 무시한다.
+   * jQuery 제거 이후, 이전 `.data(...)` shim과 동일한 계약(get: CM6 문서 전체 문자열, set:
+   * 문서 전체 치환)을 네이티브 프로퍼티로 노출한다. 소비자(yona.Attachments.js 등)는
+   * `textarea.closest('yona-markdown-editor')`로 이 엘리먼트를 찾아 `.value`로 직접 접근한다.
+   * view가 없으면(연결 전) get은 빈 문자열, set은 무시한다.
    */
   get value(): string {
     return this.view ? this.view.state.doc.toString() : "";

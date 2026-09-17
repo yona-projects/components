@@ -1,5 +1,5 @@
-// Vue SFC판(editor2)의 툴바 - 원본(components/editor의 toolbar.ts)이 직접 DOM을 만들어
-// 붙이던 것과 달리, 여기서는 순수 데이터(spec)만 내보내고 실제 <button> 렌더링은
+// 원본(components/editor의 toolbar.ts)이 직접 DOM을 만들어 붙이던 것과 달리, 여기서는
+// 순수 데이터(spec)만 내보내고 실제 <button> 렌더링은
 // YonaMarkdownEditor.vue의 템플릿(v-for)이 담당한다 - Vue는 imperative DOM 생성 대신
 // 선언적 템플릿을 쓰는 게 관용적이기 때문.
 //
@@ -62,8 +62,7 @@ export function buildToolbarSpec(): ToolbarItem[] {
     { command: "link", title: "Create link", iconChar: ICON.link, run: insertLink },
     { command: "image", title: "Insert image", iconChar: ICON.image, run: insertImage },
     "separator",
-    // preview: run이 없다 - 클릭 시 버튼 자체의 active 표시만 토글하고(YonaMarkdownEditor.vue의
-    // onPreviewToggle) 문서는 건드리지 않는다.
+    // preview: run이 없다 - 클릭 시 버튼 자체의 active 표시만 토글하고 문서는 건드리지 않는다.
     { command: "preview", title: "Toggle preview", iconChar: ICON.preview },
   ];
 }

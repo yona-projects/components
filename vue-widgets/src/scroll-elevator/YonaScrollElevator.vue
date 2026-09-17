@@ -1,15 +1,12 @@
 <script setup lang="ts">
-// yona.ScrollElevator.js(common/, jquery.elevator.js를 대체한 vanilla 구현)를 Vue 3
-// SFC로 다시 쓴 버전 - "맨 위로/맨 아래로 스크롤" 버튼. 원본도 이미 document.body에
-// 프로그래밍적으로 마운트하는 위젯(Toast와 동일 계열)이었다.
+// yona.ScrollElevator.js(common/, jquery.elevator.js를 대체한 vanilla 구현)를 옮긴
+// "맨 위로/맨 아래로 스크롤" 버튼.
 //
-// **<Teleport to="body"> 사용 이유(review-form/login-dialog와 동일한 이유 - CSS 포팅
-// 회피)**: 이 위젯의 시각 스타일은 전부 jquery.elevator.css(413줄, board/view.html·
-// issue/view.html이 각자 <link>로 로드하는 서드파티 플러그인 CSS - yona.css가 아님)에
-// 있다. Shadow DOM에 그대로 두면(Toast처럼) 이 CSS 전체를 이식해야 했다 - Teleport로
-// 옮기면 host 페이지가 이미 로드해둔 jquery.elevator.css를 그대로 상속받아 포팅이
-// 전혀 필요 없다. 원본도 어차피 document.body에 직접 append하던 위젯이라 위치상
-// 손실도 없다.
+// <Teleport to="body">로 그린다: 시각 스타일이 전부 jquery.elevator.css(서드파티
+// 플러그인 CSS, board/view.html·issue/view.html이 각자 로드 - yona.css가 아님)에
+// 있어, Shadow DOM에 두면 그 CSS 전체를 이식해야 했을 것이다. Teleport로 host
+// 페이지의 CSS를 그대로 상속받아 포팅이 필요 없다(원본도 document.body에 직접
+// append하던 위젯이라 위치상 손실도 없다).
 import { onMounted, onUnmounted, reactive, ref, useHost } from "vue";
 
 type SizeClass = "jq-big" | "jq-mid" | "jq-sml";

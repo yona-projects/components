@@ -1,15 +1,9 @@
-// 3단계(툴바) 스모크 테스트 - Vue 3 SFC판.
+// 툴바 스모크 테스트(Vue 3 SFC판) - 원본(editor/smoke-test/toolbar.mjs)과 동일한 커맨드를 검증한다.
 //
-// 확인 항목은 원본(editor/smoke-test/toolbar.mjs)과 동일하다: 9개 툴바 커맨드가 실제
-// 클릭+키보드 선택으로 기대한 마크다운 텍스트를 만들어내는지, preview placeholder가 문서를
-// 건드리지 않는지, 콘솔 에러가 없는지.
-//
-// 원본은 정적 HTML + 빌드된 min.js 하나만으로 검증했지만(파일 프로토콜), Vue SFC는 그 자체로
-// 실행 가능한 파일이 아니라 번들러(Vite)를 거쳐야 하므로 Vite 개발 서버를 이 스크립트 안에서
-// 직접 띄운다(Vite Node API, `npx vite` 서브프로세스를 spawn해 stdout에서 포트를 파싱하는
-// 방식보다 안정적). 또한 커스텀 엘리먼트가 아니라 Vue 컴포넌트 인스턴스이므로
-// `document.querySelector(...).value`로 직접 값을 주고받을 수 없다 - App.vue가 테스트
-// 편의상 `window.__yonaEditor`(컴포넌트 ref)에 노출해둔 getValue()/setValue()를 대신 쓴다.
+// Vue SFC는 번들러(Vite)를 거쳐야 하므로 Vite 개발 서버를 직접 띄운다(Vite Node API가 `npx vite`
+// 서브프로세스 spawn 방식보다 안정적). 커스텀 엘리먼트가 아니라 Vue 컴포넌트 인스턴스라
+// `document.querySelector(...).value`로 값을 주고받을 수 없어, App.vue가 테스트용으로 노출한
+// `window.__yonaEditor`(컴포넌트 ref)의 getValue()/setValue()를 대신 쓴다.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 import path from "node:path";

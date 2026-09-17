@@ -1,29 +1,15 @@
 <script setup lang="ts">
 // yona.Attachments.js(+yona.Files.js의 XHR2 업로드 부분)를 Vue 3 SFC로 다시 쓴 버전.
-// common/uploadForm.html(드롭존+업로드 버튼+첨부파일 카드 목록)의 실제 대체 대상이다.
+// common/uploadForm.html의 실제 대체 대상이다.
 //
-// 다른 위젯들과 마찬가지로 전체를 무조건 Shadow DOM에 넣지 않는다 - 이번엔 두 가지를
-// 구분했다:
-// 1. 첨부파일 카드 마크업(site/layout.html의 <script id="tplAttachedFile">)은 처음엔
-//    호출부마다 다른 커스텀 템플릿처럼 보였지만(yona.*.Write.js 각각이
-//    htOptions.sTplFileItem을 받음), 실제로 이 템플릿을 오버라이드하는 호출부는
-//    전수 조사 결과 0건이었다(전부 이 전역 템플릿을 그대로 읽어 쓴다) - 즉 실질적으로
-//    닫힌 계약이라 Vue가 선언적으로 그대로 그린다(bootstrap.css/yona.css의
-//    .attached-file 이식).
-// 2. 반면 <textarea>(마크다운 에디터)는 이 컨테이너 밖 다른 위치에 있는 완전히 별개의
-//    엘리먼트라(같은 폼 안이지만 형제 관계가 아님) 슬롯으로 투과시킬 수 없다 -
-//    드롭다운/다이얼로그와 동일하게 `configure()` 명령형 API로 외부 참조를 주입받는다.
+// 첨부파일 카드 마크업(site/layout.html의 tplAttachedFile)은 이를 오버라이드하는
+// 호출부가 없어 닫힌 계약이므로 Vue가 선언적으로 그린다. 반면 <textarea>(마크다운
+// 에디터)는 이 컨테이너 밖의 별개 엘리먼트라 슬롯으로 투과시킬 수 없어
+// `configure()` 명령형 API로 외부 참조를 주입받는다.
 //
-// 첨부파일 컨테이너 자체를 직접 querySelector로 파고드는 외부 코드는 없다(전수 grep
-// 확인 - board/code.Diff/code.SvnDiff/issue/milestone.View.js 5곳 전부
-// `elContainer._isYonaAttachment` expando만 확인) - 그래서 host 자신을 감싸는 데
-// 아무 위험이 없다.
-//
-// yona.Files.js(XHR2 진행률/드래그/붙여넣기 엔진, pub-sub 이벤트 버스)는 그대로
-// vanilla로 남겨두지 않고 이 컴포넌트가 자체적으로 업로드 로직을 소유한다 - 그
-// 이벤트 버스를 구독하는 다른 소비자가 없고(아바타 업로드는 yona.Files.js를 독립적으로
-// 직접 쓴다, 이 컴포넌트와 무관), 문자열 네임스페이스 기반 pub-sub을 Vue 반응형으로
-// 옮길 실익이 없었다.
+// yona.Files.js의 pub-sub 이벤트 버스는 재사용하지 않는다 - 구독하는 다른 소비자가
+// 없고(아바타 업로드는 별도로 yona.Files.js를 직접 쓴다), 문자열 네임스페이스 기반
+// pub-sub을 Vue 반응형으로 옮길 실익이 없었다.
 import { computed, onMounted, onUnmounted, ref, useHost, useTemplateRef } from "vue";
 import { markersToFiles, type AttachmentMarker } from "./markers";
 
@@ -50,20 +36,16 @@ const files = ref<AttachedFile[]>([]);
 const isDraggingOver = ref(false);
 const hasFiles = computed(() => files.value.length > 0);
 
-// XHR2(FormData/File API/ProgressEvent)는 이 앱이 지원하는 모든 현대 브라우저에서
-// 항상 사용 가능하다(원본의 bXHR2/bDroppable/bPastable 피처 감지 - IE 폴백 분기는
-// 이식하지 않았다, 이미 원본 자체가 "현재 모든 현대 브라우저는 이 경로"라고 문서화한
-// 대상).
+// 원본의 bXHR2/bDroppable/bPastable IE 폴백 분기는 이식하지 않는다 - XHR2는 이 앱이
+// 지원하는 모든 현대 브라우저에서 항상 사용 가능하다.
 const dropHelpVisible = true;
 const pasteHelpVisible = true;
 
 let externalTextarea: HTMLTextAreaElement | null = null;
 let uploadURL = "/files";
-// 원본 AttachmentController에는 "/attachments" 엔드포인트 자체가 없다(GET /files가
-// containerType/containerId 쿼리로 목록을 반환한다) - 이 기본값을 그대로 쓰는
-// 소비자가 있으면 loadExistingAttachments()의 fetch가 항상 404 나서(에러는
-// 조용히 무시되므로) 기존 첨부파일 목록이 안 뜨는 잠복 버그였다(2026-09-16
-// label-editor 이후 재검증 세션에서 백엔드 컨트롤러 대조로 발견).
+// 원본 AttachmentController에는 "/attachments" 엔드포인트가 없다(GET /files가
+// containerType/containerId 쿼리로 목록을 반환한다) - 이 기본값을 쓰면 fetch가
+// 항상 404 나고 에러가 조용히 무시돼 기존 첨부파일 목록이 안 뜨는 잠복 버그였다.
 let listURL = "/files";
 const temporaryFileIds: string[] = [];
 
@@ -181,10 +163,8 @@ function removeUploadFileIdFromForm(id: string): void {
   updateHiddenInput();
 }
 
-// 원본은 hidden input(name=temporaryUploadFiles)을 welToAttach(targetFormId 또는
-// elContainer)의 첫 자식으로 만든다 - 여기서는 host(라이트 DOM) 자신의 자식으로
-// 명령형으로 만든다(에디터의 light-DOM textarea, 드롭다운의 hidden input과 동일한
-// 이유 - 실제 <form> 제출에 실려야 한다).
+// hidden input(name=temporaryUploadFiles)은 실제 <form> 제출에 실려야 하므로
+// host(라이트 DOM) 자신의 자식으로 명령형으로 만든다.
 let hiddenInputEl: HTMLInputElement | null = null;
 function updateHiddenInput(): void {
   if (!host) return;
@@ -261,9 +241,8 @@ function onSuccessUpload(submitId: string, response: { id: string; name: string;
   target.size = response.size;
   target.progress = 100;
 
-  // 붙여넣기(이미지)만 업로드 전에 임시 표시(HTML 주석, submitId 기준)를 미리 넣어둔다
-  // (onPaste 참고) - 파일 선택/드래그 업로드는 애초에 아무것도 안 넣으므로 이 치환은
-  // 조용히 no-op(원본과 동일 - split/join 기반이라 대상이 없으면 아무 변화 없음).
+  // 붙여넣기(onPaste)만 업로드 전에 임시 표시(HTML 주석, submitId 기준)를 미리 넣어두므로
+  // 그 경우에만 치환된다 - 파일 선택/드래그 업로드는 대상이 없어 조용히 no-op.
   replaceLinkInTextarea(getTempLinkText(submitId), getLinkText(target));
 }
 
@@ -272,8 +251,6 @@ function onErrorUpload(submitId: string, message: string): void {
   if (index !== -1) {
     files.value.splice(index, 1);
   }
-  // 붙여넣기로 미리 넣어둔 임시 표시를 정리한다(submitId 기준 - insert/replace와 동일한
-  // 키). 파일 선택/드래그 업로드는 애초에 아무것도 안 넣었으므로 조용히 no-op.
   clearLinkInTextarea(getTempLinkText(submitId));
   // eslint-disable-next-line no-console
   console.error("파일 업로드 실패:", message);
@@ -319,9 +296,6 @@ function onPaste(event: ClipboardEvent): void {
       const pastedFile = item.getAsFile();
       if (!pastedFile) continue;
       const fileName = `${submitId}.png`;
-      // 붙여넣기는 원본과 동일하게 업로드 완료 전에 임시 표시(HTML 주석, submitId 기준 -
-      // onSuccessUpload의 replaceLinkInTextarea와 동일한 키를 써야 나중에 치환된다)를
-      // 먼저 넣는다.
       insertLinkToTextarea(getTempLinkText(submitId));
       const renamed = new File([pastedFile], fileName, { type: pastedFile.type });
       uploadSingleFile(renamed, submitId);
@@ -372,14 +346,10 @@ function humanFileSize(bytes: number): string {
   return `${size.toFixed(1)}${units[unitIndex]}`;
 }
 
-// yona.CommentAttachmentsUpdate.js 흡수(댓글 수정 폼) 대응 - 서버가 이미
-// commentAttachmentsByCommentId 모델 속성으로 첨부파일 목록을 갖고 있는데, 백엔드
-// AccessControl.isAllowedAttachment()가 ISSUE_COMMENT/NONISSUE_COMMENT 컨테이너
-// 타입을 지원하지 않아(아래 loadExistingAttachments가 쓰는 GET /files 경로가
-// 항상 403) resourceType/resourceId 기반 조회를 쓸 수 없다(백엔드 보안 코드
-// 수정은 이 세션 스코프 밖) - 그래서 서버가 이미 렌더링해둔 마커 엘리먼트를
-// host의 라이트 DOM 자식으로 그대로 두고 마운트 시점에 한 번만 읽어 files를
-// 직접 채운다(추가 네트워크 요청 없음). 순수 변환은 markers.ts(TDD)에 있다.
+// 댓글 수정 폼(commentAttachmentsByCommentId)은 AccessControl.isAllowedAttachment()가
+// ISSUE_COMMENT/NONISSUE_COMMENT를 지원하지 않아 loadExistingAttachments()의 GET /files가
+// 항상 403이 난다. 그래서 서버가 이미 렌더링해둔 마커 엘리먼트를 마운트 시점에 읽어
+// files를 직접 채운다(순수 변환은 markers.ts 참고).
 function readInitialAttachmentMarkers(): AttachmentMarker[] {
   if (!host) return [];
   return Array.from(host.querySelectorAll<HTMLElement>(":scope > .attached-file-marker")).map((el) => ({
@@ -410,11 +380,8 @@ function loadExistingAttachments(resourceType: string, resourceId?: string): voi
     });
 }
 
-// 원본 yona.Files.js._attachEvent: 붙여넣기는 업로드 컨테이너가 아니라 실제 마크다운
-// 에디터의 <textarea>에 포커스가 있을 때 동작한다(dragover/drop도 컨테이너뿐 아니라
-// textarea 자체에 드롭하는 경우까지 지원한다) - 이 컨테이너 자신에 건 이벤트만으로는
-// 절대 재현되지 않는 별개의 대상이라, 외부 textarea 참조를 받는 시점에 직접
-// addEventListener로 붙인다.
+// 붙여넣기/드래그드롭은 업로드 컨테이너가 아니라 실제 textarea에 포커스/드롭이 있을 때도
+// 동작해야 하므로, 컨테이너 자체 이벤트만으로는 재현되지 않아 외부 textarea에 직접 붙인다.
 function attachExternalTextareaEvents(textarea: HTMLTextAreaElement): void {
   textarea.addEventListener("paste", onPaste);
   textarea.addEventListener("dragover", onDragOver);
@@ -516,25 +483,21 @@ defineExpose({ configure });
 </template>
 
 <style>
-/* :host는 scoped 블록 안에 두면 무효 셀렉터가 되어 조용히 사라진다(스위치/드롭다운/
-   다이얼로그/타입어헤드 위젯에서 이미 실측 확인). */
+/* :host는 scoped 블록 안에 두면 무효 셀렉터가 되어 조용히 사라진다(실측 확인됨). */
 :host {
   display: block;
 }
 </style>
 
 <style scoped>
-/* yona.css의 .upload-wrap/.attach-wrap/.attached-file/.upload-drop-here 및
-   .nbtn(+.medium/.white 조합만 - 이 위젯이 실제 쓰는 고정 조합) 그대로 이식 -
-   이 위젯은 전부 Shadow DOM에서 렌더링되므로 전역 CSS가 안 닿는다. */
+/* 이 위젯은 전부 Shadow DOM에서 렌더링되어 전역 CSS(yona.css)가 안 닿으므로
+   .upload-wrap/.attach-wrap/.attached-file/.upload-drop-here/.nbtn 스타일을 이식한다. */
 .upload-wrap {
   padding: 10px !important;
   position: relative;
 }
-/* yona.css의 .content-footer(원래 이 컴포넌트 루트가 upload-wrap과 함께 갖는 클래스
-   조합) 이식 - 전역 CSS가 Shadow DOM에 안 닿아 배경/여백/모서리가 비어 보이던
-   것을 나중에 발견해 추가(issue/create.html #upload 실대치 검증 당시엔 기능 흐름만
-   확인하고 이 시각적 디테일은 놓쳤었음). */
+/* yona.css의 .content-footer 이식 - Shadow DOM엔 전역 CSS가 안 닿아 배경/여백/모서리가
+   비어 보였다. */
 .content-footer {
   padding: 10px 20px;
   background-color: #f5f5f5;

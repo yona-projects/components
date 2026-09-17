@@ -24,10 +24,10 @@
 //      프로퍼티에 직접 대입한다 - 둘 다 Shadow DOM 안의 Vue 인스턴스는 찾을 수도, 다룰
 //      수도 없다.
 // 두 문제 모두 원본(editor/)이 애초에 textarea를 light DOM에 뒀던 것과 같은 이유다 -
-// ElementInternals(form-associated custom element)로 폼 참여만 따로 해결할 수도 있지만
-// (실제로 한 번 그렇게 했었다), 그러면 (2)는 여전히 안 풀리고 light DOM textarea를 어차피
-// 추가해야 한다면 그 textarea 하나가 (1)도 자연스럽게 해결한다(진짜 <form> 자손 필드가
-// 되므로) - 그래서 ElementInternals는 걷어내고 light DOM textarea 하나로 통일했다.
+// ElementInternals(form-associated custom element)로 폼 참여(1)만 따로 해결할 수도 있지만
+// 그러면 (2)는 여전히 안 풀리고, light DOM textarea를 어차피 추가해야 한다면 그 textarea
+// 하나가 (1)도 자연스럽게 해결한다(진짜 <form> 자손 필드가 되므로) - 그래서 ElementInternals는
+// 걷어내고 light DOM textarea 하나로 통일했다.
 //
 // 구현: super.connectedCallback()(Vue 앱을 shadow root에 동기적으로 마운트)이 끝난 직후
 // 이 wrapper가 스스로 실제 <textarea>를 만들어 host의 light DOM 자식으로 붙인다(원본과

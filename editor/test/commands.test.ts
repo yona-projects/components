@@ -1,8 +1,5 @@
-// yona-markdown-editor 3단계(툴바) 커맨드 로직 단위 테스트.
-//
-// src/commands.ts의 순수 함수를 대상으로 한다 - View/DOM 없이 EditorState만으로 검증 가능하다.
-// (Shadow DOM 내부 클릭 → 버튼 UI 자체는 Playwright가 1차 검증 수단이지만, 토글 규칙 자체의
-// 회귀는 이 레벨에서 훨씬 빠르고 정확하게 잡을 수 있다.)
+// src/commands.ts 순수 함수 단위 테스트 - View/DOM 없이 EditorState만으로 검증한다. 버튼 UI
+// 자체는 Playwright(스모크 테스트)가 담당하고, 토글 규칙의 회귀는 이 레벨에서 더 빠르게 잡는다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EditorState } from "@codemirror/state";

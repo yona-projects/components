@@ -1,35 +1,22 @@
 <script setup lang="ts">
-// yona.Pagination.js(common/yona.Pagination.js)를 Vue 3 SFC로 다시 쓴 버전 -
-// 매번 새로 그리는 stateless 위젯(Toast와 같은 계열)이라 <Teleport>도 라이트 DOM
-// 탈출구도 필요 없다: 원본이 매 update() 호출마다 target.innerHTML = ''로 지우고
-// 통째로 다시 그리던 것을, Vue가 내부 reactive 상태 기반으로 선언적으로 다시
-// 그리는 것으로 그대로 옮겼다. 순수 로직(URL 파싱/페이지 계산/입력값 보정)은
-// pagination.ts로 뽑아 단위 테스트했다(원본의 미묘한 특성 - rxDigit이 실제로는
-// "positive만"이 아니라 "첫 글자는 아무거나 + 나머지는 숫자"만 검사하는 것,
-// isNumeric이 16진수/음수 문자열도 숫자로 판정하는 것 - 까지 전부 그대로 보존).
+// yona.Pagination.js(common/yona.Pagination.js)를 Vue 3 SFC로 옮긴 버전 - 매번
+// 새로 그리는 stateless 위젯이라 <Teleport>/라이트 DOM 탈출구가 필요 없다.
+// 순수 로직(URL 파싱/페이지 계산/입력값 보정)은 pagination.ts로 분리했고, 원본의
+// 미묘한 동작(rxDigit이 "첫 글자는 아무거나 + 나머지만 숫자" 검사, isNumeric이
+// 16진수/음수 문자열도 숫자로 판정)까지 그대로 보존해 단위 테스트했다.
 //
-// 원본과 의도적으로 다른 점 두 가지(둘 다 순수 UX 개선, 관찰 가능한 페이지 이동
-// 동작은 동일):
-// 1. 입력창 클램프(min/max 보정)를 원본은 keydown에서 처리해 실제로는 "한 타 늦게"
-//    (막 입력된 글자가 반영되기 전 값을 검사) 동작했다 - input 이벤트로 옮겨 실제
-//    입력된 값을 즉시 검사/보정한다.
-// 2. 클릭 시 전체 선택(document 전역 델리게이트)이 원본은 `input[name="pageNum"]`
-//    을 하드코딩해 paramNameForPage를 커스터마이즈한 4개 화면(예: site/postList.html의
-//    "page")에서는 실행 경로 자체를 타지 못했다 - 이 컴포넌트는 인스턴스 자신의
-//    클릭 핸들러로 처리해 paramNameForPage와 무관하게 항상 실행된다. 다만 실측 확인
-//    결과 `type="number"` 입력창에서는 최신 브라우저가 `.select()`/`selectionStart`를
-//    전부 무동작(null)으로 처리한다(원본도 동일한 제약을 겪는다 - 브라우저 플랫폼
-//    한계이지 이 포팅의 회귀가 아니다) - 그래서 실질적 사용자 체감 차이는 없고,
-//    "핸들러가 항상 걸린다"는 구조적 정확성만 개선된 것이다.
+// 원본과 의도적으로 다른 점 (관찰 가능한 페이지 이동 동작은 동일):
+// 1. 입력창 클램프를 원본은 keydown에서 처리해 "한 타 늦게" 검사됐다 - input
+//    이벤트로 옮겨 실제 입력값을 즉시 검사/보정한다.
+// 2. 원본은 클릭 시 전체 선택을 `input[name="pageNum"]` 하드코딩 셀렉터로 처리해
+//    paramNameForPage를 커스터마이즈한 화면에서는 동작하지 않았다 - 인스턴스
+//    자신의 클릭 핸들러로 옮겨 항상 실행되게 했다(단, `type="number"` 입력창의
+//    `.select()`는 최신 브라우저가 원래 무동작 - 원본도 동일한 제약이라 회귀 아님).
 import { reactive, ref } from "vue";
 import { resolvePaginationState, urlWithPageNum, clampInputValue, type UpdateOptions } from "./pagination";
 
-// Vue는 선언되지 않은 host 속성(우리 어댑터가 원본 target의 id 등을 그대로 복사해
-// 넘기는 것 포함)을 기본적으로 템플릿 루트에 그대로 흘려보낸다(attrs fallthrough) -
-// 실측 중 host의 id="pagination"이 shadow DOM 내부 루트 div에도 그대로 복제되는
-// 것을 발견했다(동작에는 영향 없음 - shadow DOM은 light DOM과 별도 ID 스코프라
-// document.getElementById는 못 찾는다 - 하지만 shadow 관통 셀렉터를 쓰는 도구에는
-// 불필요한 혼동을 준다). 내부에서 id를 참조하는 곳이 없으므로 흘려보내지 않는다.
+// Vue의 attrs fallthrough로 host의 id 등이 shadow 내부 루트 div에도 그대로
+// 복제된다(동작엔 영향 없지만 shadow 관통 셀렉터 도구에 혼동을 줌) - 차단한다.
 defineOptions({ inheritAttrs: false });
 
 // messages.js(site/layout.html이 항상 먼저 로드)가 전역으로 노출하는 i18n 함수 -

@@ -1,8 +1,8 @@
-// yona-markdown-editor 5단계(멘션) src/mention.ts 단위 테스트.
+// src/mention.ts 단위 테스트.
 //
 // commands.test.ts/preview.test.ts와 동일한 분리 원칙 - 순수 로직(트리거 감지/정렬/하이라이트/
-// 이모지 필터)만 Node 환경에서 직접 검증한다. Shadow DOM 안에서 실제로 드롭다운이 뜨고 후보를
-// 선택하는 동작 자체는 Playwright가 1차 검증 수단(계획서 5단계 절 참고).
+// 이모지 필터)만 Node 환경에서 직접 검증한다. Shadow DOM 안에서 드롭다운이 뜨고 후보를
+// 선택하는 동작은 Playwright가 담당한다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -117,9 +117,8 @@ test("filterEmojis: 이름에 쿼리가 포함된 이모지만, 더 앞에서 �
 
 test("filterEmojis: 내용(content)이 같아도 이름이 다른 항목은 서로 다른 독립 항목으로 유지된다(hooray/tada 중복 content)", () => {
   // EMOJIS 배열 자체에 content가 "🎉"로 동일하면서 name만 다른 두 항목(hooray/tada)이 있다 -
-  // 이런 항목을 CM6 Completion으로 변환할 때 label을 비워두면 내부 dedup 로직에 걸려 하나가
-  // 사라질 수 있다(mention.ts 상단 주석 참고) - emojiToCompletion이 label을 emoji name으로
-  // 채워 이를 피한다. 여기서는 그 전제(두 항목이 배열 수준에서 실제로 별개임)를 확인한다.
+  // CM6 Completion으로 변환할 때 label을 비워두면 내부 dedup 로직에 걸려 하나가 사라질 수
+  // 있어(mention.ts 상단 주석 참고), emojiToCompletion이 label을 emoji name으로 채운다.
   const hooray = EMOJIS.find((e) => e.name === "hooray");
   const tada = EMOJIS.find((e) => e.name === "tada");
   assert.ok(hooray && tada, "hooray/tada 항목이 존재해야 한다");

@@ -1,29 +1,23 @@
-// yona-markdown-editor 3단계(툴바) - 버튼 UI + CSS 테마 계약.
+// yona-markdown-editor 툴바 - 버튼 UI + CSS 테마 계약.
 //
-// 구성은 옛 yobi.ui.MarkdownEditor.js `_toolbar()`(2026-09-11 기준
-// git show f65747d1f~1:.../yobi.ui.MarkdownEditor.js로 확인)와 동일하다:
-//   Bold/Italic | Heading("H")/Quote | Checklist/Generic list/Numbered list("1.") |
-//   Link/Image | Preview
-// 아이콘 클래스(yobicon-bold/italic/quote/list/list-alt/link/image/preview)의 실제
-// 코드포인트는 src/main/resources/static/stylesheets/yobicon/style.css에서 그대로 옮겼다
-// (아래 ICON 상수 참고). heading/ordered-list는 원본처럼 대응하는 yobicon이 없어 텍스트
-// 라벨("H"/"1.")을 쓴다.
+// 구성은 옛 yobi.ui.MarkdownEditor.js `_toolbar()`와 동일하다: Bold/Italic | Heading("H")/Quote
+// | Checklist/Generic list/Numbered list("1.") | Link/Image | Preview. 아이콘 코드포인트(아래
+// ICON 상수)는 yobicon/style.css에서 그대로 옮겼다 - heading/ordered-list는 대응하는 yobicon이
+// 없어 텍스트 라벨("H"/"1.")을 쓴다.
 //
-// CSS 테마 계약(계획서 stateless-launching-ripple.md 3단계 절 참고):
-//   ::part("toolbar")            - 툴바 컨테이너
-//   ::part("button button-{command}") - 각 버튼(공용 "button" + 커맨드별 토큰)
-//   ::part("separator")          - 구분선
-//   ::part("editor")             - CM6 마운트 지점을 감싸는 wrapper
-//   ::part("preview")            - 미리보기 패널(4단계 추가)
-// CSS 커스텀 프로퍼티(--yona-md-*)로 색상/크기/폰트를 노출하되, yobi.css의 옛 재스킨
-// (.editor-toolbar 등, yobi.css 12128~12181행)과 시각적으로 동일한 값을
-// 컴포넌트 기본값으로 내장한다 - yobi.css가 ::part() 오버라이드를 전혀 안 써도 지금과
-// 똑같아 보이는 게 1차 목표(동치성).
+// CSS 테마 계약(::part() - 컴포넌트 소비자가 스타일을 오버라이드하는 공개 API):
+//   ::part("toolbar")                  - 툴바 컨테이너
+//   ::part("button button-{command}")  - 각 버튼(공용 "button" + 커맨드별 토큰)
+//   ::part("separator")                - 구분선
+//   ::part("editor")                   - CM6 마운트 지점을 감싸는 wrapper
+//   ::part("preview")                  - 미리보기 패널
+// CSS 커스텀 프로퍼티(--yona-md-*)로 색상/크기/폰트를 노출하되, yobi.css의 옛 재스킨과
+// 시각적으로 동일한 값을 컴포넌트 기본값으로 내장한다 - ::part() 오버라이드 없이도 지금과
+// 똑같아 보이는 게 목표.
 //
-// 4단계(미리보기): preview 버튼은 문서를 바꾸는 커맨드가 아니라 뷰 토글이라 다른 버튼과
-// run/dispatch 경로가 다르다 - createToolbar(view, options)의 options.onPreviewToggle이
-// 실제 패널 표시/숨김 + 서버 렌더링 트리거를 담당하고(YonaMarkdownEditor.ts), 여기서는 버튼
-// 자체의 active 표시(aria-pressed 포함)만 계속 책임진다.
+// preview 버튼은 문서를 바꾸는 커맨드가 아니라 뷰 토글이라 다른 버튼과 dispatch 경로가 다르다 -
+// options.onPreviewToggle이 실제 패널 표시/숨김 + 서버 렌더링 트리거를 담당하고
+// (YonaMarkdownEditor.ts), 여기서는 버튼 자체의 active 표시(aria-pressed)만 책임진다.
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { CommandResult } from "./commands.js";
@@ -83,9 +77,8 @@ function buildToolbarSpec(): ToolbarItem[] {
     { command: "link", title: "Create link", iconChar: ICON.link, run: insertLink },
     { command: "image", title: "Insert image", iconChar: ICON.image, run: insertImage },
     "separator",
-    // P3-46 3단계 지시 범위: 자리만 만든다(버튼 UI + part="button button-preview"). 실제
-    // 미리보기 패널/렌더링은 4단계 범위 - run이 없으므로 클릭 시 버튼 자체의 active 표시만
-    // 토글하고(placeholder) 문서는 건드리지 않는다.
+    // run이 없다 - 클릭 시 버튼 자체의 active 표시만 토글한다(placeholder). 실제 동작은
+    // options.onPreviewToggle이 담당(위 헤더 참고).
     { command: "preview", title: "Toggle preview", iconChar: ICON.preview },
   ];
 }
@@ -169,9 +162,8 @@ export function createToolbar(view: EditorView, options: ToolbarOptions): HTMLDi
 }
 
 /**
- * Shadow DOM 안에 삽입할 기본 스타일. yobi.css의 옛 재스킨(12128~12181행)과
- * 시각적으로 동일한 값을 컴포넌트 기본값으로 내장한다 - yobi.css는 필요시 이 CSS 커스텀
- * 프로퍼티만 오버라이드하면 된다.
+ * Shadow DOM 안에 삽입할 기본 스타일. yobi.css의 옛 재스킨과 시각적으로 동일한 값을 컴포넌트
+ * 기본값으로 내장한다 - yobi.css는 필요시 이 CSS 커스텀 프로퍼티만 오버라이드하면 된다.
  */
 export const TOOLBAR_STYLES = `
 :host {
@@ -278,15 +270,12 @@ export const TOOLBAR_STYLES = `
   min-height: var(--yona-md-min-height);
 }
 
-/* 4단계(미리보기): 컨테이너 자체(테두리/여백/최소높이)는 editor-wrapper와 시각적으로
-   맞췄다. 안쪽 콘텐츠 타이포그래피(제목 크기/코드블록 배경/링크 색/리스트 간격 등)와
-   코드블록 구문강조 색상은 전역 <link>(yobi.css의 .markdown-wrap 규칙, 11331행대 /
-   highlight.js styles/default.css)로 로드되어 Shadow DOM 경계를 넘지 못한다 - 사용자
-   확정(2026-09-11, 4단계 완료 시점): 3단계 툴바와 동일한 원칙대로 "전체 재현"을 택해,
-   두 스타일시트의 실제 규칙을 여기 그대로 옮겨 적었다(전역 <link> 참조나 부분 발췌가
-   아니라 컴포넌트 자체 완결 - yobi.css/highlight 테마가 나중에 바뀌면 이 블록도 손으로
-   맞춰야 하는 트레이드오프는 감수). popover/markdown-before 등 이 미리보기 패널에서
-   실사용되지 않는 규칙(부트스트랩 popover 연동, 편집 중 숨김 토글)은 제외했다. */
+/* 컨테이너(테두리/여백/최소높이)는 editor-wrapper와 맞췄다. 안쪽 콘텐츠 타이포그래피와
+   코드블록 구문강조 색상은 전역 <link>(yobi.css의 .markdown-wrap, highlight.js
+   styles/default.css)로 로드되어 Shadow DOM 경계를 넘지 못하므로, 두 스타일시트의 실제 규칙을
+   여기 그대로 옮겨 적었다 - yobi.css/highlight 테마가 바뀌면 이 블록도 손으로 맞춰야 하는
+   트레이드오프를 감수한다. 이 패널에서 쓰지 않는 규칙(부트스트랩 popover 연동, 편집 중 숨김
+   토글 등)은 제외했다. */
 .preview-wrap {
   box-sizing: border-box;
   min-height: var(--yona-md-min-height);
@@ -296,8 +285,8 @@ export const TOOLBAR_STYLES = `
   overflow: auto;
 }
 
-/* yobi.css .markdown-wrap (11331~11559행대) 그대로 이식 - 컨테이너 자체 여백(padding)은
-   위 .preview-wrap이 이미 담당하므로 원본의 padding 선언은 가져오지 않는다. */
+/* yobi.css .markdown-wrap 그대로 이식 - 컨테이너 여백(padding)은 위 .preview-wrap이 이미
+   담당하므로 원본의 padding 선언은 가져오지 않는다. */
 .preview-wrap {
   font-size: 1.1em;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
@@ -496,8 +485,8 @@ export const TOOLBAR_STYLES = `
   word-break: break-all;
 }
 
-/* highlight.js styles/default.css 그대로 이식 (100줄 전체 - hljs.highlightElement()가 이
-   .preview-wrap 안의 pre code에 붙이는 .hljs-* 클래스를 이 안에서도 동일하게 채색). */
+/* highlight.js styles/default.css 그대로 이식 - hljs.highlightElement()가 pre code에 붙이는
+   .hljs-* 클래스를 이 안에서도 동일하게 채색한다. */
 .preview-wrap .hljs {
   display: block;
   overflow-x: auto;

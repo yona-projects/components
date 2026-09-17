@@ -122,12 +122,10 @@ check("실제 요청 바디에 project.id 반영", result?.body.includes("projec
 check("성공 응답 시 실제로 페이지가 리로드됨", page.url() === pageUrl);
 
 // 6. 서버 에러(500) 시 실제 에러 다이얼로그 표시
-// 직전 시나리오의 성공 응답이 실제 페이지 리로드를 일으켰다(reload는 재할당으로
-// 가로챌 수 없다 - login-dialog-element.mjs에서 실측 확인한 것과 동일). Vite
-// dev 클라이언트가 그 진짜 리로드 직후 자기 것대로 한 번 더(HMR 재연결 감지로
-// 추정) 리로드를 일으키는 게 실측으로 확인돼(framenavigated 이벤트 2회), 그
-// 두 번째 리로드가 끝나기 전에 다음 show()를 부르면 그 사이 detach된 엘리먼트를
-// 잡는다 - networkidle까지 기다려 안정화를 보장한다.
+// 직전 성공 응답의 페이지 리로드(가로챌 수 없음, login-dialog-element.mjs와 동일)에 이어
+// Vite dev 클라이언트가 HMR 재연결로 한 번 더 리로드해 framenavigated가 2회 발생한다 -
+// 두 번째 리로드 전에 show()를 부르면 그 사이 detach된 엘리먼트를 잡으므로 networkidle까지
+// 대기해 안정화한다.
 await page.waitForLoadState("networkidle");
 await page.waitForFunction(() => document.querySelector("yona-category-edit-dialog")?.shadowRoot);
 await page.evaluate(() => document.querySelector("yona-category-edit-dialog").show({
@@ -140,10 +138,8 @@ result = await page.evaluate(() => document.querySelector("yona-dialog").shadowR
 check("서버 에러 시 실제 에러 메시지가 Messages()로 조합되어 표시됨", result.includes("카테고리 수정 실패") && result.includes("500"));
 check("서버 에러 후 실제로 다이얼로그가 닫힘(finally hide)", await page.evaluate(() => document.body.querySelector("dialog#editCategory").open === false));
 
-// 6번 시나리오가 의도적으로 500 응답을 라우트로 흘려보내는데, 그 자체가
-// Chromium 콘솔에 "Failed to load resource" 에러를 남긴다(실제 네트워크
-// 계층에서 나는 메시지라 JS 쪽에서 억제할 수 없다) - help-element.mjs와 동일한
-// 이유로 이 특정 메시지만 걸러낸다.
+// 의도적인 500 응답이 Chromium 콘솔에 "Failed to load resource"를 남긴다
+// (네트워크 계층 메시지라 JS에서 억제 불가, help-element.mjs와 동일) - 이 메시지만 걸러낸다.
 const unexpectedErrors = errors.filter((e) => !e.includes("Failed to load resource"));
 console.log("콘솔 에러(의도된 500 응답 로그 제외):", unexpectedErrors.length === 0 ? "없음" : unexpectedErrors);
 

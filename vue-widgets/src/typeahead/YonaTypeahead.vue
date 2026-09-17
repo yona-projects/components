@@ -1,21 +1,13 @@
 <script setup lang="ts">
-// yona.ui.Typeahead.js(Bootstrap bootstrap-typeahead.js에 의존하지 않는 순수 커스텀
-// 자동완성 구현)를 Vue 3 SFC로 다시 쓴 버전.
+// yona.ui.Typeahead.js(Bootstrap에 의존하지 않는 순수 커스텀 자동완성)를 Vue 3 SFC로 이식.
 //
-// 다른 위젯들과 다른 지점에서 시작한 블로커: 이 위젯은 정적 Thymeleaf 템플릿이 아니라
-// 이미 존재하는 <input>에 JS 생성자가 직접 인스턴스화하는 방식이다(`new
-// yona.ui.Typeahead(existingInput, options)`, 5개의 서로 다른 호출부). 그래서 교체할
-// 고정된 마크업 자체가 없다 - 하지만 이건 "커스텀 엘리먼트를 못 쓴다"는 뜻이 아니라
-// "생성자 자신이 그 자리에서 커스텀 엘리먼트를 만들어 기존 input을 감싸면 된다"는
-// 뜻이다(호출부 코드는 전혀 안 바뀜 - element.ts가 아니라 yona.ui.Typeahead.js 어댑터가
-// 이 감싸기를 담당한다).
+// 다른 위젯과 달리 정적 템플릿이 아니라 이미 존재하는 <input>을 JS 생성자가 직접
+// 감싸는 방식(`new yona.ui.Typeahead(existingInput, options)`)이라, 그 감싸기는
+// element.ts가 아니라 yona.ui.Typeahead.js 어댑터가 담당한다(호출부 코드는 안 바뀜).
 //
-// 메뉴 자체(.typeahead.dropdown-menu > li > a)는 스위치/드롭다운과 달리 호출부마다
-// 다른 임의 마크업이 아니라 항상 같은 모양(문자열 배열 -> <li><a>텍스트</a></li>)이라 -
-// 이 부분은 다른 위젯들처럼 전부 Shadow DOM 안에서 Vue가 선언적으로 그린다(bootstrap.css의
-// .dropdown-menu CSS를 그대로 이식). 오직 <input> 자신만 <slot>으로 라이트 DOM에 남긴다
-// (스위치의 체크박스와 동일한 이유 - 포커스/타이핑 상태를 유지해야 하고 다른 코드가
-// 그 input을 계속 참조할 수 있어야 한다).
+// 메뉴(.typeahead.dropdown-menu > li > a)는 항상 같은 모양이라 Shadow DOM 안에서 Vue가
+// 그리고, <input> 자신만 <slot>으로 라이트 DOM에 남긴다(포커스/타이핑 상태 유지 및
+// 외부 코드의 input 참조 때문 - 스위치의 체크박스와 동일한 이유).
 import { ref, useTemplateRef } from "vue";
 
 interface TypeaheadItem {
@@ -41,9 +33,8 @@ function getInput(): HTMLInputElement | null {
   return (assigned.find((el) => el.tagName === "INPUT") as HTMLInputElement) ?? null;
 }
 
-// 원본 yona.ui.Typeahead.js의 생성자 옵션(htOptions.htData.source/minLength/limit)을
-// 그대로 받는다 - 실제 서버 조회(XHR)는 어댑터(yona.ui.Typeahead.js) 쪽에 남겨두고,
-// 이 컴포넌트는 배열이든 함수든 동일하게 다룬다(원본과 동일한 이원화).
+// 원본 생성자 옵션(source/minLength/limit)을 그대로 받는다 - 서버 조회(XHR)는
+// 어댑터 쪽에 남기고, 이 컴포넌트는 배열/함수 소스를 동일하게 다룬다.
 function configure(options: { source: TypeaheadSource; minLength?: number; limit?: number }): void {
   source = options.source;
   minLength = options.minLength ?? 0;
@@ -219,14 +210,9 @@ defineExpose({ configure });
 </template>
 
 <style>
-/* :host는 scoped 블록 안에 두면 무효 셀렉터가 되어 조용히 사라진다(스위치/드롭다운/
-   다이얼로그 위젯에서 이미 실측 확인 - components/vue-widgets/README.md의 switch 위젯
-   절 참고) - 그래서 이 규칙만 scoped 없는 별도 블록에 둔다. 호스트 자신이
-   position:relative인 새 포지셔닝 컨텍스트가 되어, 메뉴를 원본처럼 offsetTop/offsetLeft를
-   JS로 계산하지 않고 순수 CSS(top:100%)만으로 입력창 바로 아래에 놓을 수 있다 - 원본은
-   메뉴가 입력창의 형제 엘리먼트였기 때문에 JS 계산이 필요했지만, 이 구조에서는 host가
-   포지셔닝 기준점 역할을 대신한다(더 견고한 방식으로의 의도적 개선 - 실제 시각적
-   위치는 실측으로 검증). */
+/* :host를 scoped 블록에 두면 무효 셀렉터가 되어 조용히 사라진다(실측 확인 - README의
+   switch 위젯 절 참고) - 그래서 별도 non-scoped 블록에 둔다. host가 position:relative
+   기준점이 되어 메뉴를 JS 계산 없이 top:100%만으로 입력창 바로 아래에 놓는다. */
 :host {
   display: inline-block;
   position: relative;
@@ -234,10 +220,8 @@ defineExpose({ configure });
 </style>
 
 <style scoped>
-/* bootstrap.css:2857 .dropdown-menu + 원본 셀렉터 .typeahead.dropdown-menu 그대로 이식 -
-   이 위젯은 메뉴 전체를 Shadow DOM에서 렌더링하므로 전역 CSS가 안 닿는다. 원본처럼
-   JS로 top/left를 계산하지 않고 CSS만으로 입력창 바로 아래에 붙인다(위 :host 블록
-   참고). */
+/* bootstrap.css .dropdown-menu 이식 - Shadow DOM이라 전역 CSS가 안 닿는다. 위치는
+   JS 계산 없이 CSS(top:100%)로 처리(위 :host 블록 참고). */
 .typeahead-wrap {
   display: contents;
 }

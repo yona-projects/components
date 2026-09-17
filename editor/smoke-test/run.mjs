@@ -1,6 +1,4 @@
-// 1단계(빌드 인프라) 스모크 테스트.
-// 확인 항목: (a) 콘솔 에러 없음, (b) <yona-markdown-editor>의 shadowRoot가 실제로 attach됨.
-// CM6 마운트/폼 통합/툴바 등은 이 단계 범위가 아니므로 검증하지 않는다.
+// 빌드 인프라 스모크 테스트 - CM6 마운트/폼 통합/툴바 등은 범위 밖.
 import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 import path from "node:path";

@@ -1,27 +1,16 @@
 <script setup lang="ts">
-// yona.LoginDialog.js를 Vue 3 SFC로 다시 쓴 버전 - 익명 사용자에게만 렌더링되는
-// site/layout.html의 #loginDialog(네이티브 <dialog>)다.
+// 익명 사용자에게만 렌더링되는 site/layout.html의 #loginDialog(네이티브
+// <dialog>)다.
 //
-// **핵심 설계 결정**: 이 다이얼로그는 review-form과 달리 다른 위치로 옮겨 다닐
-// 필요가 없다(항상 화면 중앙에 고정). 그런데도 <Teleport to="body">를 그대로
-// 썼다 - review-form에서 발견한 부수 효과(Teleport 목적지는 컴포넌트의 Shadow DOM
-// 밖, 진짜 라이트 DOM이 된다)를 이번엔 "동적 위치 이동"이 아니라 "CSS 포팅 회피"
-// 목적으로 의도적으로 재사용한 것이다 - 원본은 `.modal`(bootstrap.css)/`.loginDialog`/
-// `.login-form-wrap`/`.frm-wrap`/`.ybtn`/`.oauth-login-btn`/`.auth-provider-logo`/
-// `.yona-shake` 등 15개 이상의 전역 클래스에 기대는 폼이라, Shadow DOM에 그대로
-// 두면(Dialog/Toast/Switch처럼) 전부 이식해야 했다 - Teleport로 옮기면 전역
-// yona.css/bootstrap.css를 그대로 상속받아 포팅이 전혀 필요 없다(review-form 이후
-// 두 번째로 <style> 블록이 아예 없는 위젯).
+// 위치를 옮길 필요가 없는데도 <Teleport to="body">를 쓴다 - 목적은 이동이
+// 아니라 CSS 포팅 회피다. 원본이 기대는 15개 이상의 전역 클래스(.modal/
+// .loginDialog/.frm-wrap/.ybtn 등)를 Shadow DOM에 그대로 두면 전부 이식해야
+// 하지만, Teleport로 라이트 DOM에 내보내면 전역 yona.css/bootstrap.css를
+// 그대로 상속받는다.
 //
-// **CSRF 재검증(이전 조사에서 review-form과 같은 403 함정을 예상했으나 실제로는
-// 아니었다)**: 원본이 th:action 폼(자동 CSRF 히든 필드 주입)을 쓴 이유는 폼
-// 자체가 "익명 사용자에게 sitewide로 렌더링되는 유일한 순수 HTML action= 서버
-// 렌더링 폼"이었기 때문이라고 원본 주석에 적혀 있지만, 실제 제출 로직
-// (`_onSubmitForm`)은 네이티브 폼 제출이 아니라 `preventDefault()` 후 `fetch()`로
-// 직접 POST한다 - `site/layout.html`의 전역 `window.fetch` 몽키패치(스크립트
-// 로드 순서상 yona.LoginDialog.js보다 먼저 실행됨)가 XSRF-TOKEN 쿠키를
-// X-XSRF-TOKEN 헤더로 이미 자동 첨부해주므로 CSRF 히든 필드 자체가 애초에
-// 불필요했다 - 이 컴포넌트도 동일하게 fetch()로 제출하면 그만이다.
+// CSRF: 원본은 th:action 폼으로 CSRF 히든 필드를 자동 주입받지만, 실제 제출은
+// fetch()로 이뤄진다 - site/layout.html의 전역 fetch 몽키패치가 XSRF-TOKEN
+// 쿠키를 X-XSRF-TOKEN 헤더로 자동 첨부해주므로 CSRF 필드 자체가 불필요하다.
 import { onMounted, ref, useHost, useTemplateRef } from "vue";
 
 declare function Messages(key: string): string;
@@ -49,10 +38,9 @@ function isInputElement(el: EventTarget | null): boolean {
   return tagName === "INPUT" || tagName === "TEXTAREA";
 }
 
-// 원본 _showDialog: 트리거 엘리먼트가 입력창이면 blur()로 포커스를 뺀다(모달
-// 뒤에서 포커스 링이 남는 것 방지) - 원본은 이 판단을 클릭 이벤트 핸들러
-// 안에서 했지만, 트리거 델리게이트는 여전히 페이지(어댑터) 소유이므로
-// show()가 트리거 엘리먼트를 선택적으로 받아 동일한 정책을 그대로 수행한다.
+// 트리거 엘리먼트가 입력창이면 blur()로 포커스를 뺀다(모달 뒤에 포커스 링이
+// 남는 것 방지) - 트리거 델리게이트는 페이지(어댑터) 소유라 show()가 트리거를
+// 선택적으로 받아 이 정책을 대신 수행한다.
 function show(triggerTarget?: EventTarget | null): void {
   if (isInputElement(triggerTarget ?? null)) {
     (triggerTarget as HTMLElement).blur();
@@ -70,8 +58,6 @@ function hide(): void {
   dialogRef.value?.close();
 }
 
-// 원본 $yona.attachDialogDismiss와 동일한 단일 click 델리게이트(배경 클릭 ->
-// data-dismiss 순) - 이미 이식한 YonaDialog.vue의 onDialogClick과 동일 패턴.
 function onDialogClick(event: MouseEvent): void {
   if (event.target === dialogRef.value) {
     hide();
@@ -97,9 +83,8 @@ function showError(message: string): void {
   errorMessage.value = message;
   errorVisible.value = true;
 
-  // jQuery UI .effect("shake")를 대체하는 CSS 애니메이션(yona.css의 .yona-shake) -
   // 클래스를 뗐다 다시 붙이기 전에 강제로 리플로우시켜야 연속 실패 시에도
-  // 애니메이션이 재생된다(원본과 동일한 기법 - Vue 템플릿 ref로도 그대로 동작).
+  // .yona-shake 애니메이션이 다시 재생된다.
   const dialog = dialogRef.value;
   if (dialog) {
     dialog.classList.remove("yona-shake");
@@ -117,9 +102,9 @@ async function onSubmit(event: Event): Promise<void> {
   try {
     response = await fetch(actionUrl.value, {
       method: "post",
-      // jQuery $.ajax/$.post는 동일 출처 요청에 X-Requested-With: XMLHttpRequest를
-      // 자동으로 붙였는데 fetch는 그렇지 않다 - 서버(YonaAuthenticationFailureHandler)가
-      // AJAX 요청인지 판단하는 근거라 명시적으로 붙인다(원본과 동일).
+      // jQuery $.ajax는 X-Requested-With: XMLHttpRequest를 자동으로 붙였지만
+      // fetch는 안 붙인다 - 서버(YonaAuthenticationFailureHandler)가 AJAX 요청
+      // 판단 근거로 쓰므로 명시적으로 붙여야 한다.
       headers: { "X-Requested-With": "XMLHttpRequest" },
       body: new URLSearchParams({
         loginIdOrEmail: loginIdOrEmail.value,
@@ -144,7 +129,7 @@ async function onSubmit(event: Event): Promise<void> {
       showError(msg(responseObject.message, responseObject.message));
       return;
     } catch {
-      // JSON 파싱 실패 시 상태코드 기반 메시지로 폴백(원본과 동일).
+      // JSON 파싱 실패 시 상태코드 기반 메시지로 폴백.
     }
   }
   getErrorMessageByStatus(response.status);
@@ -194,12 +179,9 @@ defineExpose({ show, hide });
                 />
               </dd>
             </dl>
-            <!-- yona.css의 `.loginDialog .error { display: none; }`는 원본이
-                 showError()에서 elLoginError.style.display = "block"으로 덮어쓰던 것 -
-                 v-show(빈 값으로 되돌림)만으로는 이 전역 규칙을 이기지 못한다
-                 (review-form의 `.review-form { display: none; }`와 동일한 함정,
-                 실대치 검증 중 실제로 재현해 발견) - 인라인 스타일로 명시적으로
-                 강제해야 한다. -->
+            <!-- yona.css의 `.loginDialog .error { display: none; }`를 이기려면
+                 v-show가 아니라 인라인 style로 명시적으로 display를 강제해야
+                 한다. -->
             <div class="error" :style="{ display: errorVisible ? 'block' : 'none' }">
               <i class="yobicon-error"></i>
               <span class="error-message">{{ errorMessage }}</span>
@@ -224,10 +206,10 @@ defineExpose({ show, hide });
             </a>
             <a href="/authenticate/google" class="ybtn oauth-login-btn">
               <span class="auth-provider-logo">
-                <!-- 정적 src는 Vite가 빌드 시점에 실제 에셋으로 해석을 시도해 실패한다
-                     (다른 위젯의 CSS url()과 달리 <img src>는 SFC 컴파일러가 JS import로
-                     바꾼다) - :src 동적 바인딩으로 문자열 그대로 남겨 런타임에 yona
-                     정적 경로로 해석되게 한다. -->
+                <!-- 정적 src는 Vite가 빌드 시점에 에셋으로 해석하려다 실패한다
+                     (<img src>는 SFC 컴파일러가 JS import로 바꾼다) - :src 동적
+                     바인딩으로 문자열 그대로 남겨 런타임에 yona 정적 경로로
+                     해석되게 한다. -->
                 <img :src="'/images/provider-logo/btn_google_light_normal_ios.svg'" alt="login with Google" /> Sign in with Google
               </span>
             </a>

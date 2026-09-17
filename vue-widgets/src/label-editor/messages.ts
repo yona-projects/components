@@ -1,11 +1,8 @@
-// 다른 위젯들(YonaLoginDialog/YonaDialog/YonaPagination)의 확립된 관례를 그대로
-// 따른다: `<template>`에서 Messages()를 직접 호출하면 Vue SFC 컴파일러가 이를
-// 스크립트 바인딩으로 인식하지 못해 `_ctx.Messages(...)`로 컴파일하고, 그
-// `_ctx.Messages`는 undefined라 런타임에 깨진다(실측으로 발견 - new-label-form의
-// 첫 스모크 테스트가 "t.Messages is not a function"으로 실패했다). 그래서
-// `<script setup>`에 실재하는 로컬 함수(msg)로 감싸 템플릿은 그 함수만 참조하게
-// 한다. label-editor의 세 컴포넌트가 같은 메시지 키 상당수를 공유하므로(color.ts/
-// request.ts와 같은 이유로) 한 번만 이 모듈에 모았다.
+// `<template>`에서 Messages()를 직접 호출하면 Vue SFC 컴파일러가 이를 스크립트
+// 바인딩으로 인식하지 못해 `_ctx.Messages(...)`로 컴파일하고 런타임에 깨진다
+// (`_ctx.Messages`가 undefined). `<script setup>`의 로컬 함수(msg)로 감싸
+// 템플릿은 그 함수만 참조하게 한다. label-editor 세 컴포넌트가 메시지 키를
+// 공유하므로 한 번만 이 모듈에 모았다.
 export type MessagesFn = (key: string, ...args: string[]) => string;
 
 const FALLBACKS: Record<string, string> = {

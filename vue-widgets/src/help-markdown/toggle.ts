@@ -4,7 +4,7 @@
 // 클릭하면 그 탭으로 바뀐다(이전 것은 자동으로 닫힘 - 한 번에 최대 1개만 열림).
 //
 // DOM/프레임워크에 의존하지 않는 순수 함수로 분리해 node:test로 바로 단위 테스트한다
-// (commands.ts/mention.ts 등 editor2의 관례와 동일한 이유).
+// (commands.ts/mention.ts 등 editor의 관례와 동일한 이유).
 export function nextActiveKey(current: string | null, clicked: string): string | null {
   return current === clicked ? null : clicked;
 }

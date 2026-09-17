@@ -1,32 +1,21 @@
-// yona-markdown-editor 5단계(멘션) - @codemirror/autocomplete 기반 재구현.
+// 옛 yobi.Mention.js(atjs -> Tribute.js 이식판)의 순수 로직(이모지 배열/정렬/하이라이트)은 CM
+// API와 무관하므로 그대로 이식했다 - menuItemTemplate/selectTemplate만 @codemirror/autocomplete의
+// Completion 어댑터로 새로 작성한다.
 //
-// 옛 yobi.Mention.js(atjs -> Tribute.js 이식판, common/yobi.Mention.js)의 순수 로직(이모지 배열,
-// 커스텀 정렬 알고리즘, 하이라이트 로직)은 CM API와 무관하므로 그대로(동치) 이식했다 -
-// menuItemTemplate/selectTemplate만 @codemirror/autocomplete의 Completion 객체 형식에 맞는
-// 어댑터로 새로 작성한다(계획서 5단계 절 참고).
-//
-// 착수 전 조사한 @codemirror/autocomplete API 요약(6.20.3, node_modules 소스 직접 확인):
-// - Completion에는 Tribute의 menuItemTemplate에 대응하는 "renderOption" 같은 필드가 없다. 대신
-//   CompletionConfig.addToOptions(render(completion, state, view) => Node, position)로 완전히
-//   자유로운 DOM을 각 옵션 행에 주입할 수 있다(아이콘 20/라벨 50/detail 80과 같은 좌표 공간을
-//   공유). 기본 라벨(label/displayLabel 텍스트, position 50)은 이 옵션과 무관하게 항상 그려지므로,
-//   완전한 커스텀 렌더링을 원하면 CSS로 `.cm-completionLabel`을 숨기고 addToOptions로 실제 내용을
-//   대체한다(아래 MENTION_STYLES) - Tribute의 menuItemTemplate이 <li> 내부를 통째로 대체하던 것과
-//   동일한 자유도를 얻는다.
-// - CompletionResult.filter=false로 두면 라이브러리의 퍼지 매칭/정렬을 끄고 우리가 넘긴 순서를
-//   그대로 쓴다(옛 커스텀 sorter를 그대로 재사용하기 위해 필수). label을 사람이 읽는 고유 키(예:
-//   loginid/emoji 이름/issueNo)로 채워두면 내부 dedup 로직(연속된 동일 label+detail+apply 옵션을
-//   병합)에 걸리지 않는다 - 실제로 이모지 배열에 content가 같고 name이 다른 항목(예: "hooray"/
-//   "tada" 둘 다 🎉)이 있어 label을 전부 비워두면 이 dedup에 걸려 하나가 사라진다는 것을 소스
-//   레벨에서 직접 확인했다.
-// - CompletionSource가 promise를 반환하면 CM6가 알아서 이전 키 입력에 대한 오래된 응답을
-//   버린다(query.updates를 replay해 validFor 없는 결과는 자동으로 무효화 + 재조회) - 4단계
-//   PreviewController처럼 직접 순번을 매길 필요가 없다. 다만 "@"의 300ms debounce(요청 자체를
-//   지연시켜 서버 부하를 줄이는 것)는 CM6가 대신해주지 않으므로 CompletionContext.addEventListener
-//   ("abort", ..., {onDocChange:true})로 옛 clearTimeout(searchPending)과 동일한 효과를 낸다.
-// - autocompletion()의 tooltip DOM은 기본값(config.parent 미지정)일 때 view.dom의 자식으로
-//   붙는다(node_modules 소스 확인) - 즉 우리 Shadow DOM 안에 그대로 붙으므로 이 파일이 내보내는
-//   MENTION_STYLES를 컴포넌트의 shadow <style>에 얹기만 하면 별도 처리 없이 스코프가 맞는다.
+// @codemirror/autocomplete(6.20.3) 소스 확인으로 알게 된 함정:
+// - Completion에는 renderOption 같은 필드가 없다. addToOptions(render, position)로 각 옵션 행에
+//   완전히 커스텀 DOM을 주입할 수 있는데, 기본 라벨(label/displayLabel, position 50)은 이와
+//   무관하게 항상 그려지므로 CSS로 `.cm-completionLabel`을 숨기고 addToOptions로 대체해야 한다
+//   (아래 MENTION_STYLES).
+// - filter=false로 두면 라이브러리 자체 퍼지 매칭/정렬을 끄고 우리가 넘긴 순서를 그대로 쓴다
+//   (옛 커스텀 sorter 재사용에 필수). 단 label을 사람이 읽는 고유 키로 채워야 한다 - 비워두면
+//   내부 dedup이 label+detail+apply가 같은 옵션을 병합해버려, 이모지 중 content만 같고 name이
+//   다른 항목("hooray"/"tada" 둘 다 🎉)이 하나로 합쳐진다.
+// - CompletionSource가 promise를 반환하면 CM6가 오래된 응답을 자동으로 무효화하므로 순번을 직접
+//   관리할 필요 없다. 다만 "@"의 300ms debounce는 CM6가 대신해주지 않으므로 아래
+//   createUserMentionSource에서 직접 구현한다.
+// - autocompletion()의 tooltip DOM은 기본적으로 view.dom의 자식으로 붙는다 - 즉 우리 Shadow DOM
+//   안에 자동으로 붙으므로, MENTION_STYLES를 컴포넌트의 shadow <style>에 얹기만 하면 된다.
 import type { Completion, CompletionContext, CompletionResult, CompletionSource } from "@codemirror/autocomplete";
 import { autocompletion } from "@codemirror/autocomplete";
 import type { Extension } from "@codemirror/state";
@@ -458,15 +447,14 @@ function createIssueMentionSource(getMentionUrl: () => string | null, opts: Reso
 }
 
 export interface MentionExtensionOptions extends MentionFetchOptions {
-  /** markdownEditor 프래그먼트의 data-mention-url(프로젝트 스코프가 없는 화면은 null - "@"/"#"는
-   * 조용히 비활성화되고 ":"(이모지)만 동작한다는 뜻이 아니라, 이 확장 자체를 아예 등록하지 않는
-   * 것으로 처리한다 - YonaMarkdownEditor.ts가 mentionUrl이 없으면 이 확장을 extensions 배열에
-   * 넣지 않는다. 옛 yobi.Mention()이 페이지당 한 번만 호출되어 "@"/":"/"#" 3개를 한꺼번에 켜거나
-   * 아예 안 켜던 것과 동일한 all-or-nothing 단위를 유지하기 위함). */
+  /** markdownEditor 프래그먼트의 data-mention-url(프로젝트 스코프가 없는 화면은 null). null이면
+   * ":"(이모지)만 남기고 "@"/"#"만 끄는 게 아니라 이 확장 자체를 등록하지 않는다 -
+   * YonaMarkdownEditor.vue가 mentionUrl 없을 때 extensions 배열에 아예 넣지 않는 방식으로 처리.
+   * 옛 yobi.Mention()이 페이지당 한 번만 호출되어 3트리거를 한꺼번에 켜거나 아예 안 켜던 것과
+   * 동일한 all-or-nothing 단위를 유지하기 위함. */
   getMentionUrl: () => string | null;
 }
 
-/** yona-markdown-editor의 멘션 자동완성 확장 - @/:/# 3트리거를 override로 등록한다. */
 export function createMentionExtension(options: MentionExtensionOptions): Extension {
   const opts = resolveFetchOptions(options);
   return autocompletion({
@@ -500,10 +488,9 @@ export function createMentionExtension(options: MentionExtensionOptions): Extens
 }
 
 /** 컴포넌트 shadow <style>에 얹을 멘션 드롭다운 최소 스타일. 옛 tribute.min.css/atwho 쪽
- * 사이트별 오버라이드가 yobi.css에 전혀 없었으므로(직접 grep으로 확인 - 서드파티 기본 CSS를
- * 그대로 썼음) 3~4단계(툴바/미리보기)처럼 픽셀 단위로 재현할 대상 자체가 없다. CM6 기본
- * 드롭다운 테마(위 baseTheme, Shadow DOM 안에 자동 mount됨) 위에 이 컴포넌트의 --yona-md-*
- * 색상 토큰과 어울리도록 최소한의 손질만 더한다. */
+ * 사이트별 오버라이드가 yobi.css에 없었으므로(서드파티 기본 CSS 그대로 사용) 픽셀 단위로
+ * 재현할 대상이 없다 - CM6 기본 드롭다운 테마 위에 --yona-md-* 색상 토큰과 어울리도록
+ * 최소한의 손질만 더한다. */
 export const MENTION_STYLES = `
 .cm-completionLabel {
   display: none;

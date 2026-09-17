@@ -1,22 +1,12 @@
 <script setup lang="ts">
-// yona.ui.Switch.js(vanilla, bootstrap-switch.js 대체)를 Vue 3 Composition API + TS
-// SFC로 다시 쓴 버전. 유일한 실사용처는 user/edit_notifications.html의 알림 on/off
-// 토글(`<div class="switch" data-on-label="On" data-off-label="Off"><input
-// class="notiUpdate" type="checkbox" data-toggle="switch" ...></div>`).
+// yona.ui.Switch.js(vanilla, bootstrap-switch.js 대체)를 옮긴 버전. 유일한
+// 실사용처는 user/edit_notifications.html의 알림 on/off 토글.
 //
-// 원본과 마찬가지로 실제 체크박스가 "진실의 원천"이다 - 이 컴포넌트는 체크박스를
-// 대신하지 않고 시각적 스위치 껍데기로 감쌀 뿐이다. service/yona.user.Setting.js가
-// `document.querySelectorAll(".notiUpdate")`로 체크박스를 직접 찾아 `change` 리스너를
+// 원본과 마찬가지로 실제 체크박스가 "진실의 원천"이다 - service/yona.user.Setting.js가
+// `document.querySelectorAll(".notiUpdate")`로 체크박스를 직접 찾아 change 리스너를
 // 붙이므로, 체크박스는 반드시 커스텀 엘리먼트의 라이트 DOM 자식으로 남아있어야
-// 외부에서 계속 찾을 수 있다(에디터 위젯에서 발견한 Shadow DOM 검색 불가 문제와
-// 동일한 이유). `<slot>`으로 라이트 DOM 체크박스를 그대로 프로젝션하고, 그 실제 노드는
-// `slotRef.value.assignedElements()`로 얻어와 checked/disabled를 읽고 change 이벤트를
-// 걸고 dispatch한다 - element.ts에 별도 wrapper 클래스를 두지 않고 SFC 안에서 전부
-// 처리할 수 있다(Vue 공식 문서의 커스텀 엘리먼트 라이트 DOM 접근 패턴).
-//
-// 원본과 의도적으로 다른 점 없음 - 드래그 슬라이드 애니메이션 미이식은 이미
-// yona.ui.Switch.js 헤더 주석에 문서화된 결정을 그대로 계승한다(CSS transition만으로
-// 충분).
+// 외부에서 계속 찾을 수 있다. `<slot>`으로 프로젝션하고 `assignedElements()`로 실제
+// 노드를 얻어 checked/disabled를 읽고 change를 걸고 dispatch한다.
 import { ref } from "vue";
 
 withDefaults(
@@ -115,25 +105,16 @@ function onKeydown(event: KeyboardEvent): void {
 </template>
 
 <style>
-/* 커스텀 엘리먼트 호스트 자체는 스타일이 전혀 없으면 브라우저 기본값인
-   display:inline으로 렌더링된다 - 실제 대치 검증(Playwright)에서 발견: 내부의
-   float 레이아웃(.switch-left/.switch-right)이 inline 호스트의 박스 바깥으로
-   새어나가 옆 테이블 셀(<th>)과 클릭 영역이 겹치는 실제 레이아웃 버그가 있었다.
-   원본 .has-switch(아래)의 display: inline-block을 호스트 자신에도 그대로
-   반영해야 한다.
-   이 규칙만 scoped 없는 별도 <style> 블록에 둔 이유: Vue의 scoped CSS 변환이
-   `:host`를 그대로 두지 않고 `[data-v-xxx]:host`로 속성 셀렉터를 앞에 붙이는데,
-   `:host`는 반드시 compound selector의 맨 앞에 와야 하는 규칙(CSS Shadow DOM
-   스펙)이라 이 형태는 아예 매치되지 않는 무효 셀렉터가 된다(customElement 빌드로
-   실제 대치했을 때 :host 규칙이 조용히 적용되지 않는 것으로 실측 확인) - scoped을
-   빼면 변환 없이 `:host{...}` 그대로 나가 정상 동작한다. 같은 이유로 아래 체크박스
-   숨김 규칙도 scoped 블록의 Vue 전용 `:slotted()`(단일 콜론 - scoped 블록 안에서만
-   `::slotted()`로 변환된다)로 두면 컴파일된 CSS에서 통째로 사라지는 것을 실측
-   확인해(라이트 DOM 체크박스가 숨겨지지 않아 float 레이아웃이 옆 테이블 셀까지
-   밀려나는 클릭 영역 겹침 버그로 이어짐) 여기로 옮겼다 - 단, 이 블록은 scoped가
-   아니라 변환을 안 거치므로 표준 CSS 문법인 `::slotted()`(이중 콜론)를 직접 써야
-   한다(단일 콜론은 변환되지 않은 채 그대로 나가 무효 셀렉터가 된다 - 이 역시
-   빌드 시 lightningcss 경고로 실측). */
+/* host는 기본 display:inline이라 내부 float 레이아웃이 박스 밖으로 새어나가
+   옆 <th>와 클릭 영역이 겹치는 버그가 있었다(Playwright로 확인) - .has-switch의
+   inline-block을 host에도 반영한다.
+   scoped가 아닌 별도 <style>에 두는 이유: Vue의 scoped 변환이 `:host` 뒤에
+   `[data-v-xxx]`를 붙이는데, `:host`는 compound selector 맨 앞에만 올 수 있어
+   (CSS Shadow DOM 스펙) 그 형태는 무효 셀렉터가 되어 조용히 적용되지 않는다
+   (실측 확인). 같은 이유로 체크박스 숨김 규칙도 scoped 블록의 `:slotted()`(단일
+   콜론, scoped 안에서만 `::slotted()`로 변환됨)로 두면 컴파일 결과에서 사라져
+   여기로 옮겼다 - 이 블록은 변환을 거치지 않으므로 표준 `::slotted()`(이중
+   콜론)를 직접 써야 한다. */
 :host {
   display: inline-block;
 }

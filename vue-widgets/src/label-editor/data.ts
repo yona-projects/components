@@ -1,8 +1,7 @@
-// 원본 yona.issue.LabelEditor.js의 _coerceDataValue를 그대로 옮겼다 - jQuery의
-// `.data()`가 dataset 문자열 값을 자동으로 true/false/null/숫자/JSON으로
-// 승격시키던 특성을 네이티브 `element.dataset`(항상 문자열)으로 재현하기 위함.
-// 카테고리/라벨 이름이 우연히 순수 숫자 문자열이면 숫자로 강제 변환되는 것도
-// 원본부터 있던 특성이라 "버그"로 보고 고치지 않고 그대로 재현한다.
+// jQuery의 `.data()`가 dataset 문자열 값을 true/false/null/숫자/JSON으로 자동
+// 승격시키던 특성을 네이티브 `element.dataset`(항상 문자열)으로 재현한다.
+// 카테고리/라벨 이름이 순수 숫자 문자열이면 숫자로 강제 변환되는 것도 원본부터
+// 있던 특성이라 "버그"로 보고 고치지 말 것.
 export function coerceDataValue(value: string | undefined): unknown {
   if (value === undefined) {
     return undefined;

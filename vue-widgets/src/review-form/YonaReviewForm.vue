@@ -1,30 +1,21 @@
 <script setup lang="ts">
-// yona.CodeCommentBox.js(+common/reviewForm.html)를 Vue 3 SFC로 다시 쓴 버전 - 페이지당
-// 단 하나 존재하는 플로팅 코드리뷰 댓글 상자다. 처음엔 "위젯 경계가 아예 없다"고
-// 판단했었다(diff 뷰 전체에 결합된 DOM 재배치 오케스트레이션 + 벤더 에디터 재마운트
-// 트릭) - 다시 쪼개보니 둘 다 실제로는 풀리는 문제였다:
+// yona.CodeCommentBox.js(+common/reviewForm.html)를 Vue 3 SFC로 옮긴 버전 - 페이지당
+// 단 하나 존재하는 플로팅 코드리뷰 댓글 상자다.
 //
-// 1. **DOM 재배치**(원본은 appendChild로 폼을 diff 테이블의 여러 위치로 옮김) -> Vue의
-//    `<Teleport :to="...">`가 정확히 이 문제(상태에 따라 다른 위치에 렌더링)를 위한
-//    선언적 기능이다. **핵심 발견**: Teleport로 이동한 콘텐츠는 이 컴포넌트의 Shadow
-//    DOM 밖, 목적지의 진짜 라이트 DOM이 된다 - 그래서 다른 위젯들과 달리 review-form/
-//    write-comment-box 등의 CSS를 이 컴포넌트 안에 이식할 필요가 전혀 없다(전역
-//    yona.css를 그대로 상속받는다). 같은 이유로 `yona.code.Diff.js`의 전역 클릭
-//    델리게이트(`weEvt.target.closest(".review-form")`)도 shadow 경계 문제 없이
-//    그대로 작동한다.
-// 2. **벤더 에디터 강제 재마운트**(`_remountEditor`가 매번 cloneNode로 새 인스턴스를
-//    만듦 - 벤더 에디터가 disconnected/reconnected를 재초기화하지 않는 버그를 우회하기
-//    위한 것)는 위젯 자체의 한계가 아니라 원본 vanilla 에디터의 버그를 우회하려던
-//    것이었다 - 이미 만든 `<yona-markdown-editor-vue>`로 바꾸고 `:key`를 매 show()마다
-//    바꿔주면(Vue가 알아서 완전히 새 인스턴스로 교체) 이 트릭 자체가 필요 없어진다
-//    (GitHub 등처럼 "닫으면 초안을 버리고 다음엔 깨끗하게 시작"하는 원본의 의도된
-//    동작과도 정확히 일치한다).
+// `<Teleport :to="...">`로 원본의 DOM 재배치(appendChild로 폼을 diff 테이블의 여러
+// 위치로 옮기던 것)를 대체한다. 핵심: Teleport로 이동한 콘텐츠는 이 컴포넌트의
+// Shadow DOM 밖, 목적지의 진짜 라이트 DOM이 된다 - 그래서 review-form 관련 CSS를
+// 이식할 필요가 없고(전역 yona.css를 그대로 상속), yona.code.Diff.js의 전역 클릭
+// 델리게이트(`.closest(".review-form")`)도 shadow 경계 문제 없이 그대로 동작한다.
 //
-// 트리거 로직(언제/어디에 뜰지 결정, 드래그 선택으로 blockInfo 계산)은 `yona.code.Diff.js`
-// (861줄, diff 렌더링) 소유라 건드리지 않는다 - toast/dialog와 동일한 패턴으로
-// show(target, options)/hide()/toggle()/isVisible()/height()/offset() 공개 계약만
-// 그대로 유지한다. 첨부파일 업로드 폼은 이미 만든 `<yona-attachments>`를 자식으로
-// 그대로 재사용한다(사용자 승인 - 여러 컴포넌트가 서로 통신/조합해도 된다).
+// 원본의 `_remountEditor`(cloneNode로 매번 새 에디터 인스턴스를 만들어 벤더 에디터의
+// disconnected/reconnected 재초기화 버그를 우회하던 트릭)는 `<yona-markdown-editor-vue>`의
+// `:key`를 매 show()마다 바꾸는 것으로 대체했다 - Vue가 완전히 새 인스턴스로 교체해준다.
+//
+// 트리거 로직(언제/어디에 뜰지, 드래그 선택으로 blockInfo 계산)은 yona.code.Diff.js
+// 소유라 건드리지 않는다 - show(target, options)/hide()/toggle()/isVisible()/
+// height()/offset() 공개 계약만 유지한다. 첨부파일은 이미 만든 `<yona-attachments>`를
+// 자식으로 재사용한다.
 import { nextTick, onMounted, reactive, ref, useHost, useTemplateRef } from "vue";
 
 interface ShowOptions {

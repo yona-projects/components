@@ -1,8 +1,7 @@
-// <yona-markdown-editor-vue>가 조상 <form>의 FormData에 실제로 실리는지 확인하는 스모크
-// 테스트. defineCustomElement가 컴포넌트 전체(내부 textarea 포함)를 Shadow DOM 안에
-// 마운트하는 탓에, ElementInternals 연동 없이는 이 값이 FormData에 전혀 안 잡히는 회귀가
-// 있었다(실제 <form>에 넣어보고서야 발견 - element.ts 주석 참고). 이 테스트는 그 회귀를
-// 다시 잡기 위한 것: 초기값/setValue()/실제 타이핑 세 경로 전부 FormData에 반영돼야 한다.
+// <yona-markdown-editor-vue>가 조상 <form>의 FormData에 실제로 실리는지 확인하는 스모크 테스트.
+// defineCustomElement가 내부 textarea까지 Shadow DOM에 마운트하는 탓에 ElementInternals 연동
+// 없이는 FormData에 값이 전혀 안 잡히는 회귀가 있었다(element.ts 참고). 초기값/setValue()/
+// 실제 타이핑 세 경로 전부 FormData에 반영되는지 확인한다.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 

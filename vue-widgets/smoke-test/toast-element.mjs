@@ -1,6 +1,4 @@
-// defineCustomElement 빌드(dist-element/yona-toast-element.js) 스모크 테스트 -
-// editor-element.mjs/help-element.mjs와 동일한 이유/방식(es 모듈이라 file://로 직접 열면
-// module script의 상대 임포트가 CORS로 막혀서 로컬 정적 서버를 거친다).
+// ES 모듈이라 file://로 직접 열면 module script의 상대 임포트가 CORS로 막히므로 로컬 정적 서버를 거친다.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 

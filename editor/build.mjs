@@ -1,14 +1,11 @@
-// yona-markdown-editor 정식 빌드 스크립트. esbuild로 TypeScript 소스 + CM6를 단일
-// IIFE 번들로 묶는다. 산출물은 yona 저장소에 수동 복사·커밋되는 vendoring 대상이다
-// (README.md 참고 — 이 저장소는 yona의 Gradle 빌드/CI와 완전히 무관하다).
+// 산출물(dist/yona-markdown-editor.min.js)은 yona 저장소에 수동으로 복사·커밋되는 vendoring
+// 대상이다 - 이 저장소는 yona의 Gradle 빌드/CI와 무관하다(README 참고).
 import * as esbuild from "esbuild";
 import { execSync } from "node:child_process";
 
-// 이 컴포넌트는 산출물(dist/yona-markdown-editor.min.js)만 yona 저장소에 수동으로
-// 복사·커밋되는 vendoring 방식이라(README.md 참고), 그 파일만 보고는 어느 소스 커밋에서
-// 빌드됐는지 알 방법이 없다 - 배너 주석으로 커밋 SHA/빌드 시각을 산출물에 새겨 넣는다.
-// import.meta.dirname은 Node 20.11+에서 추가됐다(package.json의 engines.node는 ">=18") -
-// Node 18/19에서도 동작하도록 fileURLToPath(import.meta.url) 기반으로 디렉터리를 구한다.
+// vendoring 산출물만 보고는 어느 소스 커밋에서 빌드됐는지 알 수 없으므로, 배너 주석으로 커밋
+// SHA/빌드 시각을 새겨 넣는다. import.meta.dirname은 Node 20.11+ 전용(engines.node는 ">=18")
+// 이라 fileURLToPath(import.meta.url)로 디렉터리를 구한다.
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 

@@ -1,38 +1,25 @@
 <script setup lang="ts">
-// yona-markdown-editor의 Vue 3(Composition API + TypeScript, <script setup>) SFC판.
+// components/editor의 원본(네이티브 Custom Element, Shadow DOM)과 동일 기능을 Vue SFC로
+// 다시 작성한 것. 원본과 의도적으로 달라진 지점:
 //
-// components/editor의 원본은 네이티브 Custom Element(Shadow DOM)로 구현되어 있다 - 이
-// 컴포넌트는 정확히 같은 기능(CM6 편집기, 9개 툴바 커맨드, 서버 렌더링 미리보기 토글, "@"/":"/
-// "#" 멘션 자동완성)을 Vue SFC로 다시 작성한 것이다. 아래는 원본과 의도적으로 달라진 지점과
-// 그 이유:
+// 1) Shadow DOM 없음 -> Vue의 `scoped` 스타일(data-v-* 속성 선택자)을 쓴다. Shadow DOM
+//    전제인 원본의 `::part()` 계약은 제거했고, `--yona-md-*` CSS 커스텀 프로퍼티 계약만
+//    유지한다.
+// 2) 값 계약: 원본의 명령형 `value` getter/setter 대신 `v-model`을 1차 API로 삼고,
+//    명령형 접근용 defineExpose(getValue/setValue)도 함께 내보낸다.
+//    실제 <form> 제출로 발견한 함정: defineCustomElement는 이 textarea까지 Shadow DOM
+//    안에 마운트하므로 조상 <form>의 FormData에 자동으로 실리지 않는다(표준 동작). Vue의
+//    defineCustomElement는 아직 form-associated custom element(ElementInternals)를
+//    지원하지 않아(vuejs/core #12129, 미병합) element.ts에서 표준 웹 컴포넌트 API로 직접
+//    연결했다 - textarea의 input 이벤트를 composed:true로 내보내 Shadow 경계를 넘긴 뒤
+//    호스트에서 internals.setFormValue()를 호출한다.
+// 3) render-url/mention-url을 조상에서 closest()로 읽어오던 원본 패턴(Thymeleaf 프래그먼트
+//    통합용 우회) 대신 명시적 prop(renderUrl/mentionUrl)으로 받는다.
+// 4) 인스턴스별 textarea id는 원본의 수동 `instanceCounter` 대신 Vue 3.5+ `useId()`로
+//    생성한다.
 //
-// 1) Shadow DOM 없음 -> `scoped` 스타일: Vue SFC의 관용적 스코핑 방식(컴파일 시 자동 부여되는
-//    data-v-* 속성 선택자)을 그대로 쓴다. 원본의 `::part()` 테마 계약은 Shadow DOM 전제라
-//    여기서는 의미가 없으므로 제거했고, `--yona-md-*` CSS 커스텀 프로퍼티 계약만 유지한다
-//    (부모가 이 컴포넌트의 루트 엘리먼트에 스타일을 얹어 오버라이드할 수 있다).
-// 2) 값 계약: 원본은 공개 `value` getter/setter(사실상 명령형 API)를 노출했다. Vue에서는
-//    `v-model`(modelValue prop + update:modelValue emit)이 관용적 양방향 바인딩 수단이므로
-//    이것을 1차 API로 삼고, 명령형 접근이 필요한 소비자를 위해 defineExpose로 getValue/
-//    setValue도 함께 내보낸다(아래 참고).
-//    실제로 <form> 안에 넣고 제출해보고서야 발견한 함정: defineCustomElement는 컴포넌트
-//    전체(이 textarea 포함)를 Shadow DOM 안에 마운트한다 - 원본이 폼 제출 참여를 위해
-//    textarea를 일부러 light DOM에 뒀던 것과 다르다. Shadow DOM 안의 폼 필드는 조상
-//    <form>의 FormData에 자동으로 실리지 않는다(표준 동작). Vue의 defineCustomElement는
-//    아직 form-associated custom element(ElementInternals)를 지원하지 않아(vuejs/core
-//    #12129, 아직 미병합) element.ts에서 표준 웹 컴포넌트 API로 직접 연결했다 - 이
-//    textarea의 input 이벤트를 composed:true로 내보내 Shadow 경계를 넘긴 뒤(아래
-//    syncTextareaFromEditor), 호스트 엘리먼트에서 그 이벤트를 받아 매번
-//    internals.setFormValue()를 호출한다.
-// 3) data-toggle="markdown-editor" 조상에서 render-url/mention-url을 closest()로 읽어오던
-//    원본 패턴은 Thymeleaf 프래그먼트와의 통합을 위한 우회였다 - Vue 컴포넌트는 이를 그냥
-//    명시적 prop(renderUrl/mentionUrl)으로 받는다.
-// 4) 인스턴스별 textarea id 유일성: 원본은 모듈 스코프의 `let instanceCounter`로 직접
-//    카운터를 관리했다. Vue 3.5+가 제공하는 `useId()`(SSR-safe, 컴포넌트 인스턴스당 고유)로
-//    대체했다.
-//
-// commands.ts/mention.ts/preview.ts(순수 로직 + CM6 확장 팩토리)는 프레임워크에 의존하지
-// 않으므로 원본과 완전히 동일한 파일을 그대로 재사용한다 - 포팅이 필요했던 부분은 오직
-// Custom Element 껍데기(연결/해제 라이프사이클, 폼 통합, 툴바 DOM 생성)뿐이었다.
+// commands.ts/mention.ts/preview.ts는 프레임워크에 의존하지 않는 순수 로직이라 원본과
+// 동일한 파일을 그대로 재사용한다 - 포팅이 필요했던 부분은 Custom Element 껍데기뿐이다.
 import { ref, computed, useId, onMounted, onBeforeUnmount, watch } from "vue";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
@@ -90,13 +77,8 @@ function syncTextareaFromEditor(newValue: string): void {
     return;
   }
   textarea.value = newValue;
-  // yobi.ui.MarkdownEditor.js의 codemirror.on("change", ...)와 동일한 패턴 - 이 textarea를
-  // 직접 구독하는 레거시(비-Vue) 핸들러가 있다면 값이 바뀌었다는 신호를 계속 받을 수 있도록
-  // 네이티브 이벤트도 함께 재발행한다(원본과 동일한 상호운용성 유지). composed:true가 꼭
-  // 필요하다 - 이 textarea는 Shadow DOM 안에 있어서, composed 없이는 이벤트가 shadow 경계를
-  // 못 넘어 호스트 커스텀 엘리먼트(<yona-markdown-editor-vue>) 바깥에서는 전혀 안 보인다.
-  // element.ts가 바로 이 이벤트를 호스트에서 받아 ElementInternals.setFormValue()를
-  // 호출한다(실제 <form> 제출에 값이 실리게 하는 부분 - 아래 element.ts 주석 참고).
+  // 레거시(비-Vue) 핸들러 호환을 위해 네이티브 input/keyup 이벤트도 재발행한다.
+  // composed:true 필수 - 없으면 Shadow DOM 경계를 못 넘어 element.ts가 받지 못한다.
   textarea.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
   textarea.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, composed: true }));
 }
@@ -206,7 +188,6 @@ function onToolbarButtonClick(item: ToolbarButtonSpec): void {
     runToolbarCommand(item);
     return;
   }
-  // preview: 문서를 바꾸지 않는 뷰 토글.
   previewActive.value = !previewActive.value;
   if (previewActive.value && view) {
     previewController?.scheduleRender(view.state.doc.toString());
@@ -221,12 +202,8 @@ function buttonClass(item: ToolbarButtonSpec) {
   ];
 }
 
-/**
- * 명령형 접근이 필요한 소비자를 위한 getValue/setValue - 원본 Custom Element의 공개
- * `value` getter/setter와 동일한 계약(get: 현재 CM6 문서 전체 문자열, set: 문서 전체를 새
- * 문자열로 치환)이다. Vue에서는 v-model(modelValue/update:modelValue)이 1차 API이고
- * 이쪽은 어디까지나 원본과의 기능 동치성을 보여주기 위한 보조 API다.
- */
+/** 원본 Custom Element의 공개 `value` getter/setter와 동일한 계약. v-model이 1차 API이고
+ * 이쪽은 명령형 접근이 필요한 소비자를 위한 보조 API다. */
 function getValue(): string {
   return view ? view.state.doc.toString() : "";
 }
@@ -278,9 +255,8 @@ defineExpose({ getValue, setValue });
 </template>
 
 <style scoped>
-/* 원본 toolbar.ts의 TOOLBAR_STYLES를 Vue scoped 스타일로 그대로 옮겼다 - `:host`는 이
-   컴포넌트의 루트 클래스(.yona-markdown-editor-vue)로, part 셀렉터는 일반 클래스 선택자로
-   치환했을 뿐 실제 값(색상/치수)은 100% 동일하다(yobi.css 옛 재스킨과 시각적으로 동일). */
+/* 원본 toolbar.ts의 TOOLBAR_STYLES 이식 - `:host`/part 셀렉터를 스코프 클래스로
+   치환했을 뿐 실제 값(색상/치수)은 원본과 동일하다. */
 .yona-markdown-editor-vue {
   --yona-md-toolbar-bg: #fafafa;
   --yona-md-border-color: rgba(0, 0, 0, 0.15);
@@ -387,8 +363,7 @@ defineExpose({ getValue, setValue });
   overflow: auto;
 }
 
-/* 원본 toolbar.ts의 .preview-wrap(yobi.css .markdown-wrap 이식분 + highlight.js 테마)을
-   그대로 옮겼다 - 내용은 100% 동일해 이 파일에서는 생략하지 않고 전체를 유지한다. */
+/* 원본 toolbar.ts의 .preview-wrap(yobi.css .markdown-wrap 이식분 + highlight.js 테마) 그대로. */
 .preview-wrap {
   font-size: 1.1em;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji",

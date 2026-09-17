@@ -1,10 +1,5 @@
-// defineCustomElement 빌드(dist-element/yona-switch-element.js) 스모크 테스트 -
-// toast-element.mjs/editor-element.mjs와 동일한 이유/방식.
-//
-// 특히 중요한 검증(에디터 위젯에서 겪은 Shadow DOM 검색 불가 버그와 동일한 종류):
-// service/yona.user.Setting.js가 `document.querySelectorAll(".notiUpdate")`로 체크박스를
-// 직접 찾아 change 리스너를 붙이므로, <yona-switch>로 감싼 뒤에도 체크박스가 여전히
-// document 레벨 querySelectorAll로 발견 가능해야 한다(=라이트 DOM에 실존해야 한다).
+// service/yona.user.Setting.js가 document.querySelectorAll(".notiUpdate")로 체크박스를 직접 찾아
+// change 리스너를 붙인다 - <yona-switch>로 감싼 뒤에도 체크박스는 라이트 DOM에 실존해야 한다.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
@@ -26,10 +21,8 @@ page.on("pageerror", (err) => errors.push(String(err)));
 await page.goto(pageUrl);
 await page.waitForFunction(() => document.querySelector("yona-switch")?.shadowRoot);
 
-// 0. document 레벨에서 체크박스를 여전히 찾을 수 있는지(핵심 회귀 방지 포인트)
 const discoverable = await page.evaluate(() => !!document.querySelector(".notiUpdate"));
 
-// 1. 초기 상태: 서버 렌더링된 checked 속성이 그대로 반영되는지
 const initial = await page.evaluate(() => {
   const el = document.querySelector("yona-switch");
   const inner = el.shadowRoot.querySelector(".switch-animate");
@@ -39,7 +32,6 @@ const initial = await page.evaluate(() => {
   };
 });
 
-// 2. 실제 클릭으로 끄기 - change 이벤트가 라이트 DOM 체크박스에서 진짜로 발생하는지까지 확인
 await page.evaluate(() => {
   window.__changeFired = 0;
   document.querySelector(".notiUpdate").addEventListener("change", () => { window.__changeFired++; });
@@ -54,7 +46,6 @@ const afterOffClick = await page.evaluate(() => ({
   changeFired: window.__changeFired,
 }));
 
-// 3. 다시 클릭(switch-right)으로 켜기
 await page.locator("yona-switch").locator("css=.switch-right").click();
 await page.waitForTimeout(50);
 const afterOnClick = await page.evaluate(() => ({
@@ -62,7 +53,6 @@ const afterOnClick = await page.evaluate(() => ({
   changeFired: window.__changeFired,
 }));
 
-// 4. 키보드(스페이스바) 토글
 await page.locator("yona-switch").locator('[role="checkbox"]').focus();
 await page.keyboard.press("Space");
 await page.waitForTimeout(50);

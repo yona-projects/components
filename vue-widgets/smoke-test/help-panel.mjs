@@ -1,7 +1,4 @@
-// 도움말 패널 아코디언 동작 스모크 테스트 - Vite 개발 서버로 App.vue를 띄운 뒤 Playwright로
-// 확인한다: (a) 초기 상태는 전부 닫혀있음(원본과 동일 - 초기 마크업에 .active 없음),
-// (b) 탭 클릭 시 해당 콘텐츠만 열림, (c) 같은 탭을 다시 클릭하면 닫힘, (d) 다른 탭 클릭 시
-// 이전 탭은 자동으로 닫히고 새 탭만 열림, (e) 콘솔 에러 없음.
+// 도움말 패널 아코디언 동작 스모크 테스트 - Vite 개발 서버로 App.vue를 띄운 뒤 Playwright로 확인한다.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 

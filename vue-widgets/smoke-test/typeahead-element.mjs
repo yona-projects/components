@@ -1,5 +1,3 @@
-// defineCustomElement 빌드(dist-element/yona-typeahead-element.js) 스모크 테스트 -
-// toast-element.mjs/dropdown-element.mjs와 동일한 이유/방식.
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
@@ -21,10 +19,8 @@ page.on("pageerror", (err) => errors.push(String(err)));
 await page.goto(pageUrl);
 await page.waitForFunction(() => document.querySelector("yona-typeahead")?.shadowRoot);
 
-// 0. 입력 필드가 document 레벨에서 여전히 검색 가능(라이트 DOM 유지 확인)
 const discoverable = await page.evaluate(() => !!document.getElementById("tag-input"));
 
-// 1. 타이핑 -> 필터링 + 정렬 + 하이라이트
 await page.locator("#tag-input").click();
 await page.locator("#tag-input").type("d");
 await page.waitForTimeout(50);
@@ -37,14 +33,12 @@ const afterType = await page.evaluate(() => {
   return { display: getComputedStyle(menu).display, items, activeItem, highlighted };
 });
 
-// 2. 화살표 아래로 활성 항목 이동
 await page.keyboard.press("ArrowDown");
 await page.waitForTimeout(30);
 const afterArrowDown = await page.evaluate(() =>
   document.querySelector("yona-typeahead").shadowRoot.querySelector("li.active a")?.textContent,
 );
 
-// 3. Enter로 선택 -> 실제 입력값 반영 + change 이벤트 발생 + 메뉴 닫힘
 const changeFired = await page.evaluate(() => {
   window.__changed = false;
   document.getElementById("tag-input").addEventListener("change", () => { window.__changed = true; });
@@ -58,7 +52,6 @@ const afterEnter = await page.evaluate(() => ({
   menuDisplay: getComputedStyle(document.querySelector("yona-typeahead").shadowRoot.querySelector(".typeahead")).display,
 }));
 
-// 4. 클릭으로도 선택되는지
 await page.fill("#tag-input", "");
 await page.locator("#tag-input").type("f");
 await page.waitForTimeout(50);
@@ -66,7 +59,6 @@ await page.locator("yona-typeahead").locator("css=li a").first().click();
 await page.waitForTimeout(50);
 const afterClick = await page.evaluate(() => document.getElementById("tag-input").value);
 
-// 5. ESC로 닫히는지
 await page.fill("#tag-input", "");
 await page.locator("#tag-input").type("b");
 await page.waitForTimeout(50);

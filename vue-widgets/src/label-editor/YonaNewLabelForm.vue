@@ -1,32 +1,21 @@
 <script setup lang="ts">
-// yona.issue.LabelEditor.js의 "새 라벨 추가" 폼(#frmNewLabel) 부분만 뽑아 다시 썼다.
-// 카테고리/라벨 편집 다이얼로그(YonaCategoryEditDialog/YonaLabelEditDialog)는 각자
-// 독립된 커스텀 엘리먼트다 - 셋 다 서버가 렌더링한 같은 라벨 목록(#labelsList, 이
-// 컴포넌트들의 소유가 아니다)을 공유 진실 원천으로 읽는다(카테고리 목록/중복 검사
-// 전부 `div[data-category-name]`을 그때그때 다시 읽는다 - 추가/수정 모두 성공 시
-// 원본처럼 페이지를 그대로 새로고침하므로 별도의 상태 동기화 이벤트가 필요 없다).
+// 카테고리/라벨 편집 다이얼로그는 각자 독립된 커스텀 엘리먼트지만, 셋 다 서버가
+// 렌더링한 `div[data-category-name]`을 그때그때 다시 읽어 공유 진실 원천으로
+// 삼는다 - 추가/수정 성공 시 항상 페이지를 새로고침하므로 별도 동기화가 필요 없다.
 //
-// **`<Teleport :to="host">` - "나 자신에게 텔레포트"**: 이 폼은 review-form/
-// login-dialog처럼 "다른 곳으로 옮기거나 항상 body에 붙는" 위젯이 아니라 서버가
-// 정확히 원본과 같은 자리(`.label-editor-wrap` 안, #copyLabel과 #labelsList
-// 사이)에 놓아둔 <yona-new-label-form>을 그 자리에 그대로 둬야 한다 - 그런데
-// `.label-editor-wrap .new-label-wrap`처럼 조상 클래스를 요구하는 CSS가 있어
-// Shadow DOM에 그대로 그리면 이식이 필요했다. host 자신을 Teleport 대상으로 쓰면
-// (`useHost()`가 돌려주는 엘리먼트 자체에 Teleport) 렌더링된 내용이 host의 진짜
-// 라이트 DOM 자식이 되면서도 host 자신의 위치(서버가 정한 자리)는 전혀 안 바뀐다 -
-// document.body로 보내는 것과 같은 "CSS 상속" 효과를 내면서 원본 위치까지
-// 그대로 지킨다. review-form/login-dialog의 Teleport 활용을 한 단계 더 확장한
-// 것이다.
+// **`<Teleport :to="host">` - 자기 자신에게 텔레포트**: 서버가 원본과 정확히
+// 같은 자리(`.label-editor-wrap` 안, #copyLabel과 #labelsList 사이)에 놓은
+// <yona-new-label-form>을 그 자리에 그대로 둬야 하는데, `.label-editor-wrap
+// .new-label-wrap`처럼 조상 클래스를 요구하는 CSS가 있어 Shadow DOM에 그대로
+// 그리면 스타일이 깨진다. host 자신을 Teleport 대상으로 쓰면 렌더링된 내용이
+// host의 진짜 라이트 DOM 자식이 되어 CSS 상속을 받으면서도, host 자신의 위치는
+// 전혀 바뀌지 않는다.
 //
-// **함정(스모크 테스트로 실측 발견) - `<slot>` 없이는 화면에 아예 안 그려진다**:
-// 템플릿의 최상위가 <Teleport> 하나뿐이면 이 컴포넌트의 shadow root는 사실상
-// 빈 채로 남는다(Teleport는 shadow root 안에 아무 실제 노드도 남기지 않는 코멘트
-// 앵커일 뿐이다). Shadow DOM 합성 규칙상 host의 라이트 DOM 자식(Teleport로 옮겨온
-// 이 폼도 포함)은 shadow root 안에 그 자식을 담을 `<slot>`이 없으면 "flat tree"에
-// 편입되지 못해 전혀 렌더링되지 않는다(getComputedStyle이 모든 속성에 빈 문자열을
-// 반환하는 것으로 실측 확인 - display:none과 달리 layout 계산 자체가 안 일어난다).
-// 그래서 Teleport와 별도로 빈 `<slot></slot>`을 shadow root 쪽에 반드시 둬야
-// host의 라이트 DOM 자식들이 실제로 화면에 그려진다.
+// **함정(스모크 테스트로 발견) - `<slot>` 없이는 화면에 안 그려진다**: 템플릿
+// 최상위가 <Teleport> 하나뿐이면 shadow root가 사실상 비어(Teleport는 실제
+// 노드를 shadow root 안에 남기지 않는 코멘트 앵커일 뿐) host의 라이트 DOM
+// 자식이 flat tree에 편입되지 못해 전혀 렌더링되지 않는다. Teleport와 별도로
+// 빈 `<slot></slot>`을 shadow root 쪽에 반드시 둬야 한다.
 import { computed, onMounted, ref, useHost, useTemplateRef } from "vue";
 import YonaColorPicker from "./YonaColorPicker.vue";
 import { getRefinedHexColor, getContrastColor, type RgbColorParser } from "./color";
@@ -55,12 +44,9 @@ const categoryText = ref("");
 const nameText = ref("");
 const colorText = ref("");
 const colorsVisible = ref(false);
-// 실제 yona.css의 `.label-preset-colors { display: none; }`는 무조건(클래스
-// 조건 없이) 적용되는 규칙이라, v-show가 세팅하는 빈 인라인 스타일(보일 때는
-// display를 비워 클래스 캐스케이드에 맡김)로는 못 이긴다 - 인라인 스타일 자체에
-// 명시적으로 `display: block`을 줘야 한다(LoginDialog의 `.error` 박스에서
-// 이미 겪은 것과 같은 함정 - 실대치 검증으로 실측 확인, 원본도
-// `elements.colorsWrap.style.display = "block"`으로 인라인 스타일을 직접 준다).
+// yona.css의 `.label-preset-colors { display: none }`는 무조건 적용돼 v-show가
+// 세팅하는 빈 인라인 스타일로는 못 이긴다 - 명시적으로 `display: block`을 줘야
+// 한다(LoginDialog의 `.error` 박스와 같은 함정).
 const colorsVisibleStyle = computed(() => ({ display: colorsVisible.value ? "block" : "none" }));
 const nameStyle = ref<{ backgroundColor?: string }>({});
 const nameContrastClass = ref<"white" | "dimgray" | "">("");
@@ -69,8 +55,7 @@ const nameInputRef = useTemplateRef<HTMLInputElement>("nameInputRef");
 const categoryTypeaheadRef = useTemplateRef<YonaTypeaheadEl>("categoryTypeaheadRef");
 
 let actionUrl = "";
-// 원본 vars.isNewCategoryExclusive: "확정 안 됨"과 "false로 확정"을 구분해야 해서
-// undefined를 별도 상태로 쓴다(원본의 delete로 지우는 방식과 동일한 의도).
+// "확정 안 됨"과 "false로 확정"을 구분해야 해서 undefined를 별도 상태로 쓴다.
 let newCategoryExclusive: boolean | undefined;
 
 function getDialog(): YonaDialogEl | null {
@@ -124,7 +109,6 @@ function getFirstItemColorInCategory(categoryName: string): string | false {
   return getRefinedHexColor(color || "", parse);
 }
 
-// 원본 _onFocusInputName
 function onFocusName(): void {
   colorsVisible.value = true;
   const categoryName = categoryText.value.trim();
@@ -172,7 +156,7 @@ function showError(status: number, statusText: string, responseText: string, mes
       alertMessage(errorText);
       return;
     } catch {
-      // JSON 파싱 실패 시 상태코드 기반 메시지로 폴백(원본과 동일).
+      // JSON 파싱 실패 시 상태코드 기반 메시지로 폴백.
     }
   }
   alertMessage(msg("error.failedTo", msg(messageKey), String(status), statusText));
@@ -200,9 +184,9 @@ async function requestAddLabel(requestData: Record<string, unknown>): Promise<vo
 
   const result = await response.json().catch(() => null);
   if (result && typeof result === "object") {
-    // 원본 _reloadLabelList: 성공 시 항상 페이지를 다시 불러온다(PJAX가 아니라
-    // 실제 hard reload - 새 카테고리가 생겼을 때 목록 마크업 전체를 다시 그리는
-    // 로직을 별도로 재구현하지 않기 위한 원본의 의도적 단순화, 그대로 유지).
+    // 성공 시 항상 페이지를 새로고침한다(PJAX 아님) - 새 카테고리가 생겼을 때
+    // 목록 마크업 전체를 다시 그리는 로직을 별도로 재구현하지 않기 위한
+    // 의도적 단순화.
     document.location.reload();
     return;
   }

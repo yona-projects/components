@@ -1,30 +1,22 @@
-// yona-markdown-editor 3단계(툴바) - 순수 커맨드 로직.
+// 구 yobi.ui.MarkdownEditor.js `_toolbar()`가 위임했던 커맨드를 CM6 EditorState 기반으로
+// 재구현한다. 레퍼런스 소스(https://github.com/Ionaru/easy-markdown-editor의
+// _toggleBlock/_toggleHeading/_toggleLine/_toggleLink/_replaceSelection)를 직접 읽고
+// 그 토글 규칙을 최대한 동치로 재현했다.
 //
-// 구 yobi.ui.MarkdownEditor.js `_toolbar()`가 위임했던 커맨드(toggleBold/toggleItalic/
-// toggleHeadingSmaller/toggleBlockquote/toggleCheckList/toggleUnorderedList/
-// toggleOrderedList/drawLink/drawImage)를 CM6 EditorState 기반으로 재구현한다. 레퍼런스
-// 소스(https://github.com/Ionaru/easy-markdown-editor의 _toggleBlock/_toggleHeading/
-// _toggleLine/_toggleLink/_replaceSelection 함수들, 2026-09-11 조사 시점 master 기준)를
-// 직접 읽고 그 토글 규칙을 최대한 동치로 재현했다.
+// CM6-네이티브로 대체한 지점(동일 목적, 다른 메커니즘 - CM5 -> CM6 포팅):
+// - "지금 굵게/기울임 상태인가" 판정은 CM5 모드 토크나이저(getState())가 담당했으나, CM6에는
+//   그게 없으므로 lezer 구문 트리(StrongEmphasis/Emphasis 노드)로 커서가 이미 그 서식 안에
+//   있는지 판정한다 - 판정 대상은 동일하고 메커니즘만 바뀌었다.
+// - 목록/체크리스트/인용의 "이미 적용돼 있는가"는 레퍼런스 소스가 코너 케이스(전체 선택 시
+//   커서 토큰이 비는 경우)에서만 쓰던 순수 텍스트 정규식 폴백 경로를 항상 쓰도록 단순화했다 -
+//   결과가 토크나이저 경로와 사실상 동일하고 CM5 의존을 없앤다.
 //
-// CM6-네이티브로 대체한 지점(동일 목적, 다른 메커니즘 - "새 기능"이 아니라 CM5 -> CM6 포팅):
-// - "지금 굵게/기울임 상태인가"라는 판정은 원래 CM5 모드 토크나이저(getState())가 담당했다.
-//   CM6에는 그 토크나이저가 없으므로 대신 lezer 구문 트리(StrongEmphasis/Emphasis 노드)를
-//   써서 커서가 이미 그 서식 안에 있는지 판정한다 - 판정 대상(구문상 그 서식 안에 있는가)은
-//   동일하고 구현 메커니즘만 CM6 표준 방식으로 바뀐 것이다.
-// - 목록/체크리스트/인용의 "이미 적용돼 있는가"도 레퍼런스 소스 자체가 코너 케이스(예: 전체
-//   선택 시 커서 토큰이 비어버리는 경우)에서 쓰던 순수 텍스트 정규식 폴백 경로를 항상 쓰는
-//   것으로 단순화했다(레퍼런스 소스 _toggleLine()의 "After selectAll ... Fall back to
-//   detecting the type from the first selected line's text" 주석 참고) - 토크나이저 경로와
-//   결과가 사실상 동일하고 CM5 토크나이저 의존을 없앤다.
+// link/image는 레퍼런스 소스 _toggleLink의 "비활성"(삽입) 분기만 재현했다 - 이미 링크/이미지
+// 안에 있을 때 "해제"하는 분기는 구현하지 않았다.
 //
-// link/image는 이번 단계 지시(3단계 A.1) 범위가 "커서 위치에 템플릿을 삽입하고 커서를 이동"으로
-// 명시되어 있어, 레퍼런스 소스 _toggleLink의 "비활성"(삽입) 분기만 재현했다 - 이미 링크/이미지
-// 안에 있을 때 "해제"하는 분기는 구현하지 않았다(범위 밖).
-//
-// View/DOM에 의존하지 않는 순수 함수로 분리해 Node 환경에서 바로 단위 테스트한다
-// (test/commands.test.ts) - Shadow DOM 내부 클릭 동작 자체는 Playwright가 1차 검증 수단이지만,
-// 토글 규칙 자체의 로직 회귀는 이 순수 함수 레벨에서 더 빠르고 정확하게 잡을 수 있다.
+// View/DOM에 의존하지 않는 순수 함수로 분리해 Node 환경에서 단위 테스트한다
+// (test/commands.test.ts) - Shadow DOM 클릭 동작은 Playwright가 검증하지만, 토글 규칙
+// 자체의 로직 회귀는 이 레벨에서 더 빠르게 잡을 수 있다.
 import type { EditorState, TransactionSpec } from "@codemirror/state";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 

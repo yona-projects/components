@@ -1,13 +1,8 @@
 <script setup lang="ts">
-// yona.issue.LabelEditor.js의 카테고리 수정 다이얼로그(#editCategory) 부분만
-// 뽑아 다시 썼다. 네이티브 <dialog> + <select data-toggle="tomselect">를 쓴다 -
-// TomSelect 초기화는 이 컴포넌트가 아니라 site/layout.html의 전역
-// DOMContentLoaded 스캐너(`document.querySelectorAll('[data-toggle="tomselect"]')`)
-// 가 담당한다(1회성 스캔, MutationObserver 없음) - 그래서 이 다이얼로그를
-// login-dialog와 동일하게 **처음부터(v-if로 감추지 않고) 항상 렌더링**해야
-// DOMContentLoaded 시점에 이 <select>가 실제 라이트 DOM에 존재해 스캐너가
-// 찾을 수 있다(<Teleport to="body">가 host 연결 시점에 동기적으로 실행되므로
-// 시점상 문제 없음 - login-dialog에서 이미 검증된 패턴).
+// TomSelect 초기화는 site/layout.html의 전역 DOMContentLoaded 스캐너가
+// 1회성으로 담당한다(MutationObserver 없음) - 그래서 이 다이얼로그는
+// login-dialog와 동일하게 v-if로 감추지 않고 항상 렌더링해야 DOMContentLoaded
+// 시점에 <select>가 라이트 DOM에 존재해 스캐너가 찾을 수 있다.
 import { useTemplateRef } from "vue";
 import { toRequestParams } from "./request";
 import { msg } from "./messages";
@@ -44,8 +39,8 @@ function show(data: CategoryData): void {
   if (nameInputRef.value) {
     nameInputRef.value.value = data.categoryName;
   }
-  // 원본과 동일하게(P3-46 #5 후속 버그 수정) tomselect API로 값을 설정한다 -
-  // 네이티브 select.value 대입은 TomSelect 초기화 후에는 표시에 반영되지 않는다.
+  // tomselect API로 값을 설정한다 - 네이티브 select.value 대입은 TomSelect
+  // 초기화 후에는 화면에 반영되지 않는다.
   const select = exclusiveSelectRef.value;
   if (select?.tomselect) {
     select.tomselect.setValue(String(data.categoryIsExclusive));
@@ -81,7 +76,7 @@ function showError(status: number, statusText: string, responseText: string, mes
       alertMessage(errorText);
       return;
     } catch {
-      // JSON 파싱 실패 시 상태코드 기반 메시지로 폴백(원본과 동일).
+      // JSON 파싱 실패 시 상태코드 기반 메시지로 폴백.
     }
   }
   alertMessage(msg("error.failedTo", msg(messageKey), String(status), statusText));
