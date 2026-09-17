@@ -99,10 +99,25 @@ TomSelect 스캐너가 `DOMContentLoaded`에 이미 빈 `<select>`를 스냅샷�
    실제 없는 엔드포인트(`/attachments`)를 가리키던 기존 버그도 발견해 고쳤다
    (`/files`로 수정). real-substitution 검증(이슈 댓글 + 게시글 댓글 양쪽)
    에서 버그 0건 - 설계대로 한 번에 통과했다.
-2. **`yona.code.SvnDiff.js`가 `<yona-review-form>`을 안 쓰고 있음**: `_showCommentBox`/
-   `_hideCommentBox`(359~451행)가 이미 이식된 review-form을 재사용하지 않고 자체
-   댓글박스 이동 로직을 따로 구현 중이다. 신규 포팅이 아니라 **기존 위젯으로 갈아끼우는
-   확장 작업**.
+2. ~~**`yona.code.SvnDiff.js`가 `<yona-review-form>`을 안 쓰고 있음**~~ — 재조사 결과
+   (2026-09-17) **단순 교체 불가로 판정, 착수 보류**. 처음엔 "이미 이식된 review-form을
+   재사용하지 않고 자체 댓글박스 이동 로직을 따로 구현 중이다 - 기존 위젯으로 갈아끼우는
+   확장 작업"이라고 판단했으나, 실제 마크업/데이터 모델을 대조해보니 두 화면이 근본적으로
+   다른 댓글 아키텍처였다(사용자가 "SvnDiff.js가 review-form을 쓰게 바꾸면 그건 그것대로
+   행동이 바뀌는 문제 아니냐"고 정확히 짚어 재확인함):
+   - **git diff**(`code/diff.html`): 라인/범위별 **스레드** 모델(`.comment-thread-wrap`
+     + `data-thread-id` 답글), 폼은 `#review-form`(`common/reviewForm.html` 프래그먼트)을
+     `yona.CodeCommentBox.js`가 절대위치 플로팅(화살표 top/bottom)으로 옮겨 재사용.
+   - **svn diff**(`code/svnDiff.html`): 파일 전체 **단일 평면 댓글 목록**(`ul.comments`,
+     스레드 개념 자체가 없음), 폼은 그냥 `<form id="comment-form">` 하나를 클릭한 행
+     바로 다음 `<tr>`에 인라인으로 끼워넣는 방식(플로팅/화살표 없음).
+   
+   `<yona-review-form>`/`yona.CodeCommentBox.js`를 SvnDiff에 그대로 붙이면 (1) 스레드가
+   없는 SVN 댓글에 스레드형 UI를 억지로 씌우거나 CodeCommentBox에 "스레드 없는 평면 배치"
+   모드를 새로 추가해야 하고, (2) 템플릿에 `.review-form`/`reviewForm.html` 프래그먼트를
+   새로 넣어야 하고, (3) 사용자가 보는 실제 인터랙션(뜨는 위치·화살표 유무·인라인 vs
+   플로팅)이 바뀐다 - 이건 "위젯 갈아끼우기"가 아니라 **SVN 댓글 UX를 git과 통일시키는
+   별도의 기능 설계/합의가 필요한 작업**이라 위젯 포팅 세션의 범위 밖으로 판단해 보류한다.
 3. ~~**`<yona-typeahead>` 호환성 재검증 필요**~~ — 재검증 완료(2026-09-16), **실제로는
    충돌 없음**. `yona.organization.Member.js`/`yona.project.Member.js` 둘 다
    `new yona.ui.Typeahead(...)`에 `render`/`updater` 콜백을 넘기지만, 현재
