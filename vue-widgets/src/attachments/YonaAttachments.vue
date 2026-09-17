@@ -531,6 +531,15 @@ defineExpose({ configure });
   padding: 10px !important;
   position: relative;
 }
+/* yona.css의 .content-footer(원래 이 컴포넌트 루트가 upload-wrap과 함께 갖는 클래스
+   조합) 이식 - 전역 CSS가 Shadow DOM에 안 닿아 배경/여백/모서리가 비어 보이던
+   것을 나중에 발견해 추가(issue/create.html #upload 실대치 검증 당시엔 기능 흐름만
+   확인하고 이 시각적 디테일은 놓쳤었음). */
+.content-footer {
+  padding: 10px 20px;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+}
 .upload-wrap .help {
   display: none;
 }
