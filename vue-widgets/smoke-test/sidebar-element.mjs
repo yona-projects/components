@@ -27,11 +27,14 @@ const browser = await chromium.launch();
 const failures = [];
 let apiCalls = 0;
 let apiMode = "ok";
+let apiDelayMs = 0;
+let apiBody = null;
+const loginPageUrl = `http://localhost:${port}/smoke-test/sidebar-element-login.html`;
 const favoritePosts = [];
 
-async function newPage(storage = {}, extraInit = null) {
+async function newPage(storage = {}, extraInit = null, extraArg = undefined) {
   const context = await browser.newContext();
-  if (extraInit) await context.addInitScript(extraInit);
+  if (extraInit) await context.addInitScript(extraInit, extraArg);
   await context.addInitScript((initial) => {
     if (!sessionStorage.getItem("__init")) {
       sessionStorage.setItem("__init", "1");
@@ -41,10 +44,11 @@ async function newPage(storage = {}, extraInit = null) {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.route("**/-_-api/v1/usermenu", (route) => {
+  await page.route("**/-_-api/v1/usermenu", async (route) => {
     apiCalls += 1;
+    if (apiDelayMs) await new Promise((r) => setTimeout(r, apiDelayMs));
     if (apiMode === "fail") return route.fulfill({ status: 500, body: "boom" });
-    return route.fulfill({ json: MENU });
+    return route.fulfill({ json: apiBody ?? MENU });
   });
   await page.route("**/-_-api/v1/favoriteProjects/*", (route) => {
     favoritePosts.push(route.request().url().split("/").pop());
@@ -226,6 +230,97 @@ const text = (page, sel) => page.evaluate((s) => [...document.querySelector("yon
     assert.deepEqual(await text(page, ".tabs > [role=\"tab\"]"), ["Favorite", "프로젝트"]);
   });
   await context.close();
+}
+
+// ---- 시나리오 6: sessionStorage 캐시(페이지 이동 직후 바로 그리기)
+const mk = (name) => ({
+  loginId: "me", personal: [project(30, name, "me", true)], favoriteOrganizations: [], organizations: [], favoriteProjects: [],
+  recentlyVisited: [project(30, name, "me", true)], createdByMe: [project(30, name, "me", true)], watching: [], joinmember: [], visitedIssues: [],
+});
+const seedCache = ([menuJson, ageMs]) => {
+  if (sessionStorage.getItem("__cacheinit")) return;
+  sessionStorage.setItem("__cacheinit", "1");
+  sessionStorage.setItem("yona.sidebar.cache.me", JSON.stringify({ savedAt: Date.now() - ageMs, menu: JSON.parse(menuJson) }));
+};
+const visibleNames = (page) => text(page, "#myOrganizationList a.project-list .project-name");
+{
+  // 오래된(60초) 캐시 + 느린 API: 캐시를 즉시 그리고, 응답이 오면 새 데이터로 바뀌며 캐시도 갱신된다.
+  apiDelayMs = 1500; apiBody = mk("fresh-proj"); apiCalls = 0;
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" }, seedCache, [JSON.stringify(mk("cached-proj")), 60_000]);
+  await page.goto(loginPageUrl);
+  await ready(page);
+  await check("캐시가 있으면 API 응답 전에 캐시된 목록을 즉시 그리고 '불러오는 중'을 보이지 않는다", async () => {
+    await page.waitForFunction(() => document.querySelector("yona-sidebar").shadowRoot.querySelectorAll("#myOrganizationList a.project-list").length > 0, null, { timeout: 800 });
+    assert.deepEqual(await visibleNames(page), ["cached-proj"]);
+    assert.equal(await q(page, ".status"), 0);
+    assert.equal(await q(page, ".error"), 0);
+  });
+  await check("오래된 캐시는 서버 응답으로 갱신되고 캐시에도 새 데이터가 저장된다", async () => {
+    await page.waitForFunction(() => document.querySelector("yona-sidebar").shadowRoot.querySelector("#myOrganizationList a.project-list .project-name")?.textContent.trim() === "fresh-proj", null, { timeout: 5000 });
+    const stored = await page.evaluate(() => JSON.parse(sessionStorage.getItem("yona.sidebar.cache.me")).menu.personal[0].name);
+    assert.equal(stored, "fresh-proj");
+    assert.equal(apiCalls, 1);
+  });
+  await context.close();
+  apiDelayMs = 0; apiBody = null;
+}
+{
+  // 신선한(2초) 캐시: 서버에 다시 묻지 않는다(페이지 이동마다 DB 조회를 하지 않기 위해).
+  apiCalls = 0;
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" }, seedCache, [JSON.stringify(mk("cached-proj")), 2_000]);
+  await page.goto(loginPageUrl);
+  await ready(page);
+  await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
+  await page.waitForTimeout(600);
+  await check("15초 이내의 신선한 캐시는 API를 호출하지 않고 캐시로 그린다", async () => {
+    assert.equal(apiCalls, 0);
+    assert.deepEqual(await visibleNames(page), ["cached-proj"]);
+  });
+  await context.close();
+}
+{
+  // 오래된 캐시 + API 실패: 캐시를 계속 보여주고 오류 배너를 띄우지 않는다.
+  apiMode = "fail";
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" }, seedCache, [JSON.stringify(mk("cached-proj")), 60_000]);
+  await page.goto(loginPageUrl);
+  await ready(page);
+  await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
+  await page.waitForTimeout(800);
+  await check("갱신이 실패해도 캐시된 목록을 유지하고 오류 배너를 띄우지 않는다", async () => {
+    assert.deepEqual(await visibleNames(page), ["cached-proj"]);
+    assert.equal(await q(page, ".error"), 0);
+  });
+  await context.close();
+  apiMode = "ok";
+}
+{
+  // 별 토글은 캐시를 즉시 갱신한다(다음 페이지가 방금 바꾼 상태를 바로 본다).
+  favoritePosts.length = 0;
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" }, seedCache, [JSON.stringify(MENU), 2_000]);
+  await page.route("**/-_-api/v1/favoriteProjects/*", (route) => route.fulfill({ json: { projectId: "10", favored: false } }));
+  await page.goto(loginPageUrl);
+  await ready(page);
+  await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
+  await page.evaluate(() => document.querySelector("yona-sidebar").shadowRoot.querySelector(".personal .star-project").click());
+  await page.waitForFunction(() => JSON.parse(sessionStorage.getItem("yona.sidebar.cache.me")).menu.personal.find((p) => p.id === 10).favorite === false, null, { timeout: 3000 });
+  await check("별을 토글하면 캐시의 즐겨찾기 상태도 바로 갱신된다", async () => {
+    const fav = await page.evaluate(() => JSON.parse(sessionStorage.getItem("yona.sidebar.cache.me")).menu.personal.find((p) => p.id === 10).favorite);
+    assert.equal(fav, false);
+  });
+  await context.close();
+}
+{
+  // login-id 속성이 없으면(사용자를 서버가 확정해 주지 않으면) 캐시를 읽지도 쓰지도 않는다.
+  apiDelayMs = 600; apiBody = mk("fresh-proj");
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" }, seedCache, [JSON.stringify(mk("cached-proj")), 60_000]);
+  await page.goto(pageUrl);
+  await ready(page);
+  await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
+  await check("login-id 속성이 없으면 캐시를 쓰지 않는다(다른 사용자의 목록이 보일 수 없다)", async () => {
+    assert.deepEqual(await visibleNames(page), ["fresh-proj"]);
+  });
+  await context.close();
+  apiDelayMs = 0; apiBody = null;
 }
 
 await browser.close();

@@ -31,6 +31,7 @@ import {
   type ProjectTab,
   type StorageLike,
 } from "./sidebar-state";
+import { isFresh, readCache, writeCache } from "./sidebar-cache";
 
 const props = withDefaults(
   defineProps<{
@@ -65,6 +66,14 @@ function storage(): StorageLike {
   }
 }
 
+function sessionStore(): StorageLike {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return noopStorage;
+  }
+}
+
 const menu = ref<UserMenu | null>(null);
 const loading = ref(false);
 const failed = ref(false);
@@ -78,6 +87,13 @@ const expanded = ref<Set<string>>(new Set());
 const pinnedIds = ref<Set<number>>(new Set());
 
 const loginId = computed(() => host?.getAttribute("login-id") || menu.value?.loginId || "");
+
+// 아래 watch(open, { immediate: true })가 load()를 즉시 호출하므로, load가 쓰는 값은 그보다 먼저 선언해야 한다(TDZ).
+// 캐시는 서버가 사용자를 확정해 준 경우(login-id 속성)에만 쓴다. 속성이 없으면 어떤 사용자의 목록인지 알 수 없어
+// 다른 사용자의 데이터를 보여줄 위험이 있으므로 읽지도 쓰지도 않는다.
+const cacheOwner = () => host?.getAttribute("login-id") ?? "";
+// 별 토글이 캐시를 갱신해도 신선도(마지막으로 서버에서 받은 시각)는 그대로 둔다.
+let cachedAt = 0;
 
 watch(
   open,
@@ -99,21 +115,39 @@ function toggle(): void {
   setOpen(!open.value);
 }
 
-async function load(): Promise<void> {
+function pinnedOf(source: UserMenu): Set<number> {
+  return new Set(
+    [...source.personal, ...source.favoriteOrganizations.flatMap((o) => o.projects), ...source.organizations.flatMap((o) => o.projects)]
+      .filter((p) => p.favorite)
+      .map((p) => p.id),
+  );
+}
+
+async function load(force = false): Promise<void> {
+  const now = Date.now();
+  const cached = readCache(sessionStore(), cacheOwner(), now);
+  if (cached && !menu.value) {
+    // 페이지를 이동한 직후에도 "불러오는 중"을 거치지 않고 마지막 목록을 바로 그린다.
+    menu.value = cached.menu;
+    pinnedIds.value = pinnedOf(cached.menu);
+    cachedAt = cached.savedAt;
+  }
+  // 15초 이내에 받은 목록이면 서버에 다시 묻지 않는다(페이지 이동마다 DB 조회를 하지 않기 위해).
+  if (!force && isFresh(cached, now)) return;
+
   loading.value = true;
   failed.value = false;
   try {
     const response = await fetch(props.apiUrl, { headers: { Accept: "application/json" }, credentials: "same-origin" });
     if (!response.ok) throw new Error(String(response.status));
     const loaded = normalizeMenu(await response.json());
-    pinnedIds.value = new Set(
-      [...loaded.personal, ...loaded.favoriteOrganizations.flatMap((o) => o.projects), ...loaded.organizations.flatMap((o) => o.projects)]
-        .filter((p) => p.favorite)
-        .map((p) => p.id),
-    );
+    pinnedIds.value = pinnedOf(loaded);
     menu.value = loaded;
+    cachedAt = Date.now();
+    writeCache(sessionStore(), cacheOwner(), loaded, cachedAt);
   } catch {
-    failed.value = true;
+    // 캐시된 목록을 이미 보여주고 있다면 갱신 실패로 화면을 오류로 바꾸지 않는다.
+    if (!menu.value) failed.value = true;
   } finally {
     loading.value = false;
   }
@@ -165,12 +199,18 @@ async function post(url: string): Promise<{ favored: boolean } | null> {
 
 async function toggleProjectStar(project: MenuProject): Promise<void> {
   const result = await post(props.favoriteProjectUrl + project.id);
-  if (result && menu.value) menu.value = applyFavorite(menu.value, project.id, result.favored);
+  if (result && menu.value) {
+    menu.value = applyFavorite(menu.value, project.id, result.favored);
+    writeCache(sessionStore(), cacheOwner(), menu.value, cachedAt || Date.now());
+  }
 }
 
 async function toggleOrganizationStar(organization: MenuOrganization): Promise<void> {
   const result = await post(props.favoriteOrganizationUrl + organization.id);
-  if (result && menu.value) menu.value = applyOrganizationFavorite(menu.value, organization.id, result.favored);
+  if (result && menu.value) {
+    menu.value = applyOrganizationFavorite(menu.value, organization.id, result.favored);
+    writeCache(sessionStore(), cacheOwner(), menu.value, cachedAt || Date.now());
+  }
 }
 
 const tabs = computed(() => [
@@ -205,7 +245,7 @@ const etcFavorites = computed(() => filterProjects(menu.value?.favoriteProjects 
 const projectRows = computed(() => filterProjects(menu.value?.[projectTab.value] ?? [], projectQuery.value));
 const noOrganizations = computed(() => orgGroups.value.length === 0 && etcFavorites.value.length === 0);
 
-defineExpose({ toggle, setOpen, reload: load });
+defineExpose({ toggle, setOpen, reload: () => load(true) });
 
 onMounted(() => {
   if (open.value && !menu.value && !loading.value) void load();
@@ -234,7 +274,7 @@ onMounted(() => {
 
     <div v-if="failed" class="error" role="alert">
       {{ msg("sidebar.loadFailed", "목록을 불러오지 못했습니다.") }}
-      <button class="retry" type="button" @click="load">{{ msg("sidebar.retry", "다시 시도") }}</button>
+      <button class="retry" type="button" @click="load(true)">{{ msg("sidebar.retry", "다시 시도") }}</button>
     </div>
     <div v-else-if="!menu" class="status" role="status">{{ msg("sidebar.loading", "불러오는 중…") }}</div>
 
