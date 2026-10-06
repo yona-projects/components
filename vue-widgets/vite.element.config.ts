@@ -6,7 +6,7 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [
     vue({
-      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments|YonaReviewForm|YonaPagination|YonaLoginDialog|YonaScrollElevator|YonaPageSlide|YonaPopover|YonaNewLabelForm|YonaCategoryEditDialog|YonaLabelEditDialog)\.vue$/,
+      customElement: /(YonaMarkdownEditor|MarkdownHelp|Toast|YonaSwitch|YonaDropdown|YonaDialog|YonaTypeahead|YonaAttachments|YonaReviewForm|YonaPagination|YonaLoginDialog|YonaScrollElevator|YonaPageSlide|YonaPopover|YonaNewLabelForm|YonaCategoryEditDialog|YonaLabelEditDialog|YonaSidebar)\.vue$/,
     }),
   ],
   // 라이브러리 빌드는 Vue 런타임의 `process.env.NODE_ENV` 참조를 자동 치환해주지 않아
@@ -32,6 +32,7 @@ export default defineConfig({
         "yona-scroll-elevator-element": "src/scroll-elevator/element.ts",
         "yona-page-slide-element": "src/page-slide/element.ts",
         "yona-popover-element": "src/popover/element.ts",
+        "yona-sidebar-element": "src/usermenu/element.ts",
         "yona-new-label-form-element": "src/label-editor/new-label-form-element.ts",
         "yona-category-edit-dialog-element": "src/label-editor/category-edit-dialog-element.ts",
         "yona-label-edit-dialog-element": "src/label-editor/label-edit-dialog-element.ts",

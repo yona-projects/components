@@ -110,8 +110,13 @@ export function filterOrganizations(orgs: MenuOrganization[], query: string): Me
 }
 
 // 조직(개인 영역 포함)은 접힌 상태에서 즐겨찾기 프로젝트만 보여주고, 펼치면 전부 보여준다.
-export function visibleOrgProjects(org: MenuOrganization, expanded: boolean): MenuProject[] {
-  return expanded ? org.projects : org.projects.filter((p) => p.favorite);
+// isPinned로 "기본 노출" 기준을 바꿀 수 있다. 화면에서는 로드 시점의 즐겨찾기 스냅샷을 넘겨, 별을 눌러 해제해도 그 항목이 즉시 사라지지 않게 한다.
+export function visibleOrgProjects(
+  org: MenuOrganization,
+  expanded: boolean,
+  isPinned: (project: MenuProject) => boolean = (p) => p.favorite,
+): MenuProject[] {
+  return expanded ? org.projects : org.projects.filter(isPinned);
 }
 
 // 같은 프로젝트가 여러 목록에 나타나므로 모든 곳의 favorite을 함께 바꾼다. 원본은 변경하지 않는다.
@@ -121,4 +126,14 @@ export function applyFavorite(menu: UserMenu, projectId: number, favorite: boole
   for (const key of PROJECT_LISTS) next[key] = menu[key].map(mark);
   for (const key of ORGANIZATION_LISTS) next[key] = menu[key].map((o) => ({ ...o, projects: o.projects.map(mark) }));
   return next;
+}
+
+// 조직 즐겨찾기 토글 결과를 반영한다. 목록 간 이동은 하지 않고(다음 로드에서 재배치) 표시 상태만 바꾼다.
+export function applyOrganizationFavorite(menu: UserMenu, organizationId: number, favorite: boolean): UserMenu {
+  const mark = (o: MenuOrganization): MenuOrganization => (o.id === organizationId ? { ...o, favorite } : o);
+  return {
+    ...menu,
+    favoriteOrganizations: menu.favoriteOrganizations.map(mark),
+    organizations: menu.organizations.map(mark),
+  };
 }

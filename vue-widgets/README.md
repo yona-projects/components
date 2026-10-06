@@ -47,6 +47,13 @@ src/
                     showPopoverError/hidePopoverError/initHoverPopovers 다섯
                     계약을 하나의 싱글턴으로 통합, <Teleport>를 트리거마다
                     동적으로 body/열린 dialog에 바꿔 그린다)
+  usermenu/       - 왼쪽 사이드바(YonaSidebar.vue, element.ts, usermenu.ts/sidebar-state.ts 순수
+                    로직 - iframe 대신 모든 페이지에 직접 들어가는 Shadow DOM 컴포넌트.
+                    데이터는 GET /-_-api/v1/usermenu(JSON), 항목은 실제 <a href>, 테마는
+                    --yona-sidebar-* CSS 변수. 사용자 헤더(프로필/설정/로그아웃)는 전역
+                    .js-logout-link 델리게이트가 shadow 경계를 못 넘으므로 서버가 라이트 DOM으로
+                    그려 <slot name="header">로 투과한다. 열림 상태는 localStorage
+                    yonaLeftSidebarOpen에 저장하고 옛 shallWeOpenLeftNavigation 키는 한 번 이전한다)
   label-editor/   - 라벨/카테고리 관리 화면(YonaNewLabelForm.vue/
                     new-label-form-element.ts, YonaCategoryEditDialog.vue/
                     category-edit-dialog-element.ts, YonaLabelEditDialog.vue/
