@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
-const project = (id, name, owner, favorite = false, overview = null) => ({ id, name, owner, overview, href: `/${owner}/${name}/go`, favorite });
+const project = (id, name, owner, favorite = false, overview = null) => ({ id, name, owner, overview, href: `/${owner}/${name}`, favorite });
 const MENU = {
   loginId: "me",
   personal: [project(10, "mine", "me", true, "내 프로젝트"), project(11, "mine2", "me", false)],
@@ -84,7 +84,7 @@ const text = (page, sel) => page.evaluate((s) => [...document.querySelector("yon
   });
   await check("프로젝트 항목은 실제 하이퍼링크(<a href>)이고 target이 없어 일반 이동이다", async () => {
     const link = await page.evaluate(() => { const a = document.querySelector("yona-sidebar").shadowRoot.querySelector("a.project-list"); return { href: a.getAttribute("href"), target: a.getAttribute("target"), title: a.getAttribute("title") }; });
-    assert.equal(link.href, "/me/mine/go");
+    assert.equal(link.href, "/me/mine");
     assert.equal(link.target, null);
     assert.equal(link.title, "내 프로젝트");
   });

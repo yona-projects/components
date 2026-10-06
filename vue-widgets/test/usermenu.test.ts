@@ -14,7 +14,7 @@ import {
 } from "../src/usermenu/usermenu.js";
 
 const project = (id: number, name: string, owner = "me", favorite = false): MenuProject => ({
-  id, name, owner, overview: null, href: `/${owner}/${name}/go`, favorite,
+  id, name, owner, overview: null, href: `/${owner}/${name}`, favorite,
 });
 const org = (id: number, name: string, projects: MenuProject[], favorite = false): MenuOrganization => ({
   id, name, favorite, projects,
@@ -47,7 +47,7 @@ test("normalizeMenu: 정상 응답의 값은 그대로 보존한다", () => {
   };
   const menu = normalizeMenu(raw);
   assert.equal(menu.loginId, "me");
-  assert.equal(menu.createdByMe[0]!.href, "/me/mine/go");
+  assert.equal(menu.createdByMe[0]!.href, "/me/mine");
   assert.equal(menu.favoriteOrganizations[0]!.projects[0]!.favorite, true);
   assert.equal(menu.visitedIssues[0]!.title, "버그");
 });
