@@ -29,8 +29,9 @@ let apiCalls = 0;
 let apiMode = "ok";
 const favoritePosts = [];
 
-async function newPage(storage = {}) {
+async function newPage(storage = {}, extraInit = null) {
   const context = await browser.newContext();
+  if (extraInit) await context.addInitScript(extraInit);
   await context.addInitScript((initial) => {
     if (!sessionStorage.getItem("__init")) {
       sessionStorage.setItem("__init", "1");
@@ -194,6 +195,35 @@ const text = (page, sel) => page.evaluate((s) => [...document.querySelector("yon
     await page.evaluate(() => document.querySelector("yona-sidebar").shadowRoot.querySelector(".error button.retry").click());
     await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
     assert.equal(await q(page, ".error"), 0);
+  });
+  await context.close();
+}
+
+// ---- 시나리오 5: 전역 Messages()가 번역이 없는 키를 키 그대로 돌려줘도 기본 문구를 쓴다
+{
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" }, () => { window.Messages = (key) => key; });
+  await page.goto(pageUrl);
+  await ready(page);
+  await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
+  await check("번역이 없어 Messages()가 키를 그대로 돌려주면 기본 문구를 쓴다(키가 화면에 노출되지 않는다)", async () => {
+    assert.equal(await page.evaluate(() => document.querySelector("yona-sidebar").shadowRoot.querySelector(".org-search").placeholder), "검색할 이름");
+    assert.deepEqual(await text(page, ".tabs > [role=\"tab\"]"), ["즐겨찾기", "프로젝트"]);
+    const visible = await page.evaluate(() => document.querySelector("yona-sidebar").shadowRoot.textContent);
+    assert.equal(/\b(sidebar|title|common)\.[a-zA-Z.]+/.test(visible), false, visible.slice(0, 120));
+  });
+  await context.close();
+}
+{
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" }, () => {
+    const t = { "sidebar.searchPlaceholder": "Search by name", "title.favorite": "Favorite" };
+    window.Messages = (key) => t[key] ?? key;
+  });
+  await page.goto(pageUrl);
+  await ready(page);
+  await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
+  await check("번역이 있으면 번역을 쓰고, 없는 키만 기본 문구로 채운다", async () => {
+    assert.equal(await page.evaluate(() => document.querySelector("yona-sidebar").shadowRoot.querySelector(".org-search").placeholder), "Search by name");
+    assert.deepEqual(await text(page, ".tabs > [role=\"tab\"]"), ["Favorite", "프로젝트"]);
   });
   await context.close();
 }

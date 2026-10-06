@@ -49,8 +49,10 @@ const host = useHost();
 
 declare function Messages(key: string): string;
 
+// 전역 Messages()는 번역이 없는 키를 키 문자열 그대로 돌려주므로(빈 값이 아니다), 키가 돌아오면 없는 것으로 보고 기본 문구를 쓴다.
 function msg(key: string, fallback: string): string {
-  return (typeof Messages === "function" ? Messages(key) : "") || fallback;
+  const value = typeof Messages === "function" ? Messages(key) : "";
+  return value && value !== key ? value : fallback;
 }
 
 // localStorage 접근 자체가 예외를 던지는 환경(차단된 사이트 데이터)에서도 컴포넌트가 깨지지 않게 한다.
