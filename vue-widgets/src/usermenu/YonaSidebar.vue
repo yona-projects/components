@@ -213,7 +213,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <aside class="sidebar" part="sidebar" :hidden="!open" role="complementary" :aria-label="msg('title.sidebar', 'Sidebar')">
+  <aside class="sidebar" part="sidebar" :hidden="!open" role="complementary" :aria-label="msg('sidebar.label', 'Sidebar')">
     <slot name="header"></slot>
 
     <div class="tabs" role="tablist">
