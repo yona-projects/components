@@ -323,6 +323,40 @@ const visibleNames = (page) => text(page, "#myOrganizationList a.project-list .p
   apiDelayMs = 0; apiBody = null;
 }
 
+// ---- 시나리오 7: 닫을 때 내용을 바로 지우지 않는다(호스트가 슬라이드 아웃하는 동안 내용이 보여야 한다)
+{
+  const { page, context } = await newPage({ yonaLeftSidebarOpen: "true" });
+  await page.goto(pageUrl);
+  await ready(page);
+  await page.waitForSelector("yona-sidebar .user-li", { state: "attached" });
+  const asideState = () => page.evaluate(() => { const a = document.querySelector("yona-sidebar").shadowRoot.querySelector(".sidebar"); const cs = getComputedStyle(a); return { display: cs.display, visibility: cs.visibility, h: Math.round(a.getBoundingClientRect().height) }; });
+  await check("--yona-sidebar-slide가 없으면(단독 사용) 닫는 즉시 숨겨진다", async () => {
+    await page.evaluate(() => document.querySelector("yona-sidebar").setOpen(false));
+    await page.waitForTimeout(60);
+    assert.equal((await asideState()).visibility, "hidden");
+  });
+  await page.evaluate(() => { const el = document.querySelector("yona-sidebar"); el.setOpen(true); el.style.setProperty("--yona-sidebar-slide", "400ms"); });
+  await page.waitForTimeout(100);
+  await check("슬라이드 시간이 있으면 닫는 도중에도 내용이 그대로 렌더링되어 있다(display:none이 아니고 높이가 있다)", async () => {
+    await page.evaluate(() => document.querySelector("yona-sidebar").setOpen(false));
+    await page.waitForTimeout(120);
+    const mid = await asideState();
+    assert.notEqual(mid.display, "none");
+    assert.equal(mid.visibility, "visible");
+    assert.ok(mid.h > 0, "높이 " + mid.h);
+  });
+  await check("슬라이드 시간이 지나면 숨겨져 포커스와 스크린리더에서 빠진다", async () => {
+    await page.waitForTimeout(500);
+    assert.equal((await asideState()).visibility, "hidden");
+  });
+  await check("다시 열면 즉시 보인다", async () => {
+    await page.evaluate(() => document.querySelector("yona-sidebar").setOpen(true));
+    await page.waitForTimeout(60);
+    assert.equal((await asideState()).visibility, "visible");
+  });
+  await context.close();
+}
+
 await browser.close();
 await server.close();
 if (failures.length) {

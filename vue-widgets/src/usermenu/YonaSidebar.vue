@@ -253,7 +253,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <aside class="sidebar" part="sidebar" :hidden="!open" role="complementary" :aria-label="msg('sidebar.label', 'Sidebar')">
+  <aside class="sidebar" part="sidebar" role="complementary" :aria-label="msg('sidebar.label', 'Sidebar')">
     <slot name="header"></slot>
 
     <div class="tabs" role="tablist">
@@ -376,6 +376,16 @@ onMounted(() => {
 :host {
   display: block;
 }
+/* 닫혀도 내용을 지우지 않는다. 호스트가 슬라이드 아웃하는 동안 내용이 보여야 하므로 display:none 대신 visibility만
+   --yona-sidebar-slide(전환 시간) 뒤에 숨긴다. 변수가 없는 단독 사용에서는 지연 0s라 닫는 즉시 숨겨지고, 숨겨진 뒤에는 포커스와
+   스크린리더에서도 빠진다. 열 때는 지연 없이 바로 보인다. */
+:host(:not([open])) .sidebar {
+  visibility: hidden;
+  transition: visibility 0s linear var(--yona-sidebar-slide, 0s);
+}
+:host([open]) .sidebar {
+  visibility: visible;
+}
 </style>
 
 <style scoped>
@@ -388,9 +398,6 @@ onMounted(() => {
   border-right: 1px solid var(--yona-sidebar-border, black);
   min-height: 100%;
   font-size: 14px;
-}
-.sidebar[hidden] {
-  display: none;
 }
 .tabs {
   display: flex;
